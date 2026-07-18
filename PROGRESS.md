@@ -6,7 +6,7 @@ The executing agent updates this file at the start and end of every task session
 | # | Task | Status | Date | Notes |
 |----|------|--------|------|-------|
 | 01 | repo-scaffold | done | 2026-07-18 | Monorepo tree per idea.md §18 at repo root (no nested family-tree/). Added .gitignore, .editorconfig, .gitattributes (LF enforced; .sh stay LF for Linux), README. db/generated committed via .gitkeep. No package.json/go.mod/CI yet (later tasks). |
-| 02 | architecture-docs-adrs | todo | | |
+| 02 | architecture-docs-adrs | done | 2026-07-18 | docs/architecture.md (components, flow, network, auth, env inventory), docs/data-model.md (Mermaid erDiagram covering all 19 tables incl. nonces + idempotency_keys, per-table notes, enum summary), docs/security.md (threat model, HMAC, rate limits, GDPR). ADR 0001 (HMAC BFF), 0002 (staging vs canonical), 0003 (relational graph). Mermaid validated structurally via Node (depth 0, all required tables present); no browser render tool run. |
 | 03 | openapi-contract | todo | | |
 | 04 | go-api-skeleton-dev-env | todo | | |
 | 05 | migrations-staging-layer | todo | | |
