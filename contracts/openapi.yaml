@@ -1,0 +1,1368 @@
+openapi: 3.1.0
+info:
+  title: Mitovski Family Tree — Internal API
+  version: 0.1.0
+  description: |
+    Internal HTTP API for the Mitovski family-tree project (idea.md §16). It is served
+    on the Oracle VM behind Caddy and is called **only** by the Vercel Next.js BFF —
+    never by browsers directly.
+
+    ## Authentication (HMAC service auth, idea.md §4)
+
+    Every `/v1/internal/*` operation requires an HMAC-signed request. The BFF sends
+    these headers:
+
+    - `X-Service-Id` — service identity
+    - `X-Request-Timestamp` — RFC3339 UTC; rejected if skew > ±5 min
+    - `X-Request-Nonce` — UUIDv4, single-use (replay protection)
+    - `X-Idempotency-Key` — UUIDv4 on mutating requests
+    - `X-Body-SHA256` — lowercase hex SHA-256 of the raw body
+    - `X-Actor-Id` — acting principal (e.g. admin email, or `public`)
+    - `X-Actor-Role` — `admin` | `public`; trusted **only** because it is signed
+    - `X-Signature` — `hex(HMAC-SHA256(SERVICE_HMAC_SECRET, canonicalPayload))`
+
+    Canonical payload (newline-joined, in order): HTTP method, request path, timestamp,
+    nonce, idempotency key, body SHA-256, actor id, actor role. Exact escaping/empty-value
+    rules and Go↔TypeScript test vectors live in `contracts/hmac.md` and
+    `contracts/hmac-test-vectors.json` (Task 07).
+
+    The reusable header parameters are defined in `components/parameters` and are attached
+    to representative operations; **all** `/v1/internal/*` operations require the full set
+    plus the `ServiceHmac` security scheme. Only `GET /health` is unauthenticated.
+
+    ## Idempotency (idea.md §4)
+
+    For mutating requests carrying `X-Idempotency-Key`: the same key with the same body
+    replays the stored response; the same key with a different body returns `409`.
+
+    ## Authorization
+
+    Endpoints marked "admin" require `X-Actor-Role: admin` (from the signed headers).
+  contact:
+    name: Mitovski family project
+
+servers:
+  - url: https://api.rod.mitovski.example
+    description: Oracle production API (placeholder domain)
+  - url: http://127.0.0.1:8080
+    description: Local development
+
+tags:
+  - name: ops
+    description: Health and readiness (operations).
+  - name: invites
+    description: Invitation tokens (admin).
+  - name: submissions
+    description: Questionnaire submissions and their review workflow.
+  - name: matching
+    description: Candidate matching and promotion of submitted people to canonical people.
+  - name: people
+    description: Canonical people CRUD and merge.
+  - name: relationships
+    description: Parent-child relationships and unions.
+  - name: tree
+    description: Tree projection and relationship paths.
+
+security:
+  - ServiceHmac: []
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [ops]
+      summary: Liveness probe (public, unauthenticated)
+      description: Returns only a status. Reveals no versions, hostnames, or infrastructure details (idea.md §4).
+      security: []
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+
+  /ready:
+    get:
+      operationId: getReady
+      tags: [ops]
+      summary: Readiness probe
+      description: |
+        Returns readiness based on database connectivity. Body is a status only.
+        May be restricted via HMAC (idea.md §16); documented as unauthenticated here
+        but returning nothing sensitive.
+      security: []
+      responses:
+        "200":
+          description: Ready (database reachable).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+        "503":
+          description: Not ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+
+  /v1/internal/invites:
+    post:
+      operationId: postInvites
+      tags: [invites]
+      summary: Create an invitation token (admin)
+      description: Returns the plain token **once**; only its SHA-256 hash is stored (idea.md §8).
+      parameters:
+        - $ref: "#/components/parameters/XServiceId"
+        - $ref: "#/components/parameters/XRequestTimestamp"
+        - $ref: "#/components/parameters/XRequestNonce"
+        - $ref: "#/components/parameters/XIdempotencyKey"
+        - $ref: "#/components/parameters/XBodySha256"
+        - $ref: "#/components/parameters/XActorId"
+        - $ref: "#/components/parameters/XActorRole"
+        - $ref: "#/components/parameters/XSignature"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInviteRequest" }
+      responses:
+        "201":
+          description: Invite created; plain token returned once.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InviteWithToken" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    get:
+      operationId: getInvites
+      tags: [invites]
+      summary: List invitations (admin)
+      responses:
+        "200":
+          description: Invitations with usage stats.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Invite" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/internal/invites/{id}/revoke:
+    post:
+      operationId: postInvitesByIdRevoke
+      tags: [invites]
+      summary: Revoke an invitation (admin, idempotent)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Invitation revoked (or already revoked).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invite" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/internal/invites/validate:
+    get:
+      operationId: getInvitesValidate
+      tags: [invites]
+      summary: Validate an invitation token (service)
+      description: Used by the BFF before rendering the form. Does not distinguish invalid format from not-found in the message.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Validation result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InviteValidation" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/internal/submissions:
+    post:
+      operationId: postSubmissions
+      tags: [submissions]
+      summary: Create a questionnaire submission
+      description: |
+        Stores an immutable submission and explodes it into staging people/relationships/consents.
+        Never writes to canonical tables (idea.md §7). Rate-limited per fingerprint or invite (idea.md §6).
+        Idempotent via `X-Idempotency-Key`.
+      parameters:
+        - $ref: "#/components/parameters/XServiceId"
+        - $ref: "#/components/parameters/XRequestTimestamp"
+        - $ref: "#/components/parameters/XRequestNonce"
+        - $ref: "#/components/parameters/XIdempotencyKey"
+        - $ref: "#/components/parameters/XBodySha256"
+        - $ref: "#/components/parameters/XActorId"
+        - $ref: "#/components/parameters/XActorRole"
+        - $ref: "#/components/parameters/XSignature"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateSubmissionRequest" }
+      responses:
+        "201":
+          description: Submission stored (pending or spam).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [submissionId]
+                properties:
+                  submissionId: { type: string, format: uuid }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    get:
+      operationId: getSubmissions
+      tags: [submissions]
+      summary: List submissions (admin)
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/SubmissionStatus" }
+        - name: campaign
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Submissions ordered by submitted_at desc.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/SubmissionListItem" }
+                  total: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/internal/submissions/{id}:
+    get:
+      operationId: getSubmissionsById
+      tags: [submissions]
+      summary: Get a submission with people, relationships, and consents (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Full submission detail.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Submission" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/internal/submissions/{id}/start-review:
+    post:
+      operationId: postSubmissionsByIdStartReview
+      tags: [submissions]
+      summary: Transition pending → in_review (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200": { $ref: "#/components/responses/SubmissionState" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /v1/internal/submissions/{id}/reject:
+    post:
+      operationId: postSubmissionsByIdReject
+      tags: [submissions]
+      summary: Reject a submission (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReasonRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/SubmissionState" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /v1/internal/submissions/{id}/mark-spam:
+    post:
+      operationId: postSubmissionsByIdMarkSpam
+      tags: [submissions]
+      summary: Mark a submission as spam (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReasonRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/SubmissionState" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /v1/internal/submission-people/{id}/find-matches:
+    post:
+      operationId: postSubmissionPeopleByIdFindMatches
+      tags: [matching]
+      summary: Find and persist match candidates for a submitted person (admin)
+      description: Scores candidates with explainable Bulgarian reasons. Never links automatically (idea.md §10).
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Ranked candidates.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [candidates]
+                properties:
+                  candidates:
+                    type: array
+                    items: { $ref: "#/components/schemas/MatchCandidate" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/internal/submission-people/{id}/create-person:
+    post:
+      operationId: postSubmissionPeopleByIdCreatePerson
+      tags: [matching]
+      summary: Promote a submitted person to a new canonical person (admin)
+      description: Creates person, names, honest-precision events, and questionnaire source/evidence in one transaction (idea.md §7, §21).
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "201":
+          description: New canonical person aggregate.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/submission-people/{id}/link-person:
+    post:
+      operationId: postSubmissionPeopleByIdLinkPerson
+      tags: [matching]
+      summary: Link a submitted person to an existing canonical person (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [personId]
+              properties:
+                personId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Linked person aggregate.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /v1/internal/people:
+    get:
+      operationId: getPeople
+      tags: [people]
+      summary: Search canonical people (admin)
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: livingStatus
+          in: query
+          schema: { $ref: "#/components/schemas/LivingStatus" }
+        - name: privacyLevel
+          in: query
+          schema: { $ref: "#/components/schemas/PrivacyLevel" }
+        - name: includeMerged
+          in: query
+          schema: { type: boolean, default: false }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Matching people.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PersonSummary" }
+                  total: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: postPeople
+      tags: [people]
+      summary: Create a canonical person manually (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePersonRequest" }
+      responses:
+        "201":
+          description: Created person aggregate.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/internal/people/{id}:
+    get:
+      operationId: getPeopleById
+      tags: [people]
+      summary: Get a canonical person aggregate (admin)
+      description: A merged person returns a redirect envelope with `mergedIntoPersonId` and status 409.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - name: view
+          in: query
+          schema: { $ref: "#/components/schemas/View" }
+      responses:
+        "200":
+          description: Person aggregate.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Person is merged; body carries the redirect target.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MergedRedirect" }
+    patch:
+      operationId: patchPeopleById
+      tags: [people]
+      summary: Update privacy, living status, or notes (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PatchPersonRequest" }
+      responses:
+        "200":
+          description: Updated person aggregate.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/internal/people/{id}/merge:
+    post:
+      operationId: postPeopleByIdMerge
+      tags: [people]
+      summary: Merge a duplicate person into a target (admin, transactional)
+      description: Fully transactional; aborts on self-edge, cycle, or conflict (idea.md §8, Task 25).
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MergeRequest" }
+      responses:
+        "200":
+          description: Merged target aggregate.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/relationships/parent-child:
+    post:
+      operationId: postRelationshipsParentChild
+      tags: [relationships]
+      summary: Create a parent-child edge (admin)
+      description: Transactional cycle prevention; a cycle returns 422 `cycle_detected` (idea.md §12).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateParentChildRequest" }
+      responses:
+        "201":
+          description: Created edge.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParentChildRelationship" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/relationships/{id}:
+    patch:
+      operationId: patchRelationshipsById
+      tags: [relationships]
+      summary: Update a parent-child edge (admin)
+      description: Confirming re-runs the cycle check in-transaction.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PatchParentChildRequest" }
+      responses:
+        "200":
+          description: Updated edge.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParentChildRelationship" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+    delete:
+      operationId: deleteRelationshipsById
+      tags: [relationships]
+      summary: Delete a parent-child edge (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "204":
+          description: Deleted (a full snapshot is written to the audit log).
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/internal/relationships/between:
+    get:
+      operationId: getRelationshipsBetween
+      tags: [relationships]
+      summary: Direct edges between two people (admin)
+      parameters:
+        - name: personA
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: personB
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Direct edges in both directions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [edges]
+                properties:
+                  edges:
+                    type: array
+                    items: { $ref: "#/components/schemas/ParentChildRelationship" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/tree/{personId}:
+    get:
+      operationId: getTreeByPersonId
+      tags: [tree]
+      summary: Tree projection as nodes + edges (idea.md §13)
+      parameters:
+        - $ref: "#/components/parameters/PathPersonId"
+        - $ref: "#/components/parameters/XServiceId"
+        - $ref: "#/components/parameters/XRequestTimestamp"
+        - $ref: "#/components/parameters/XRequestNonce"
+        - $ref: "#/components/parameters/XBodySha256"
+        - $ref: "#/components/parameters/XActorId"
+        - $ref: "#/components/parameters/XActorRole"
+        - $ref: "#/components/parameters/XSignature"
+        - name: ancestors
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 6, default: 4 }
+        - name: descendants
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 6, default: 2 }
+        - name: includePartners
+          in: query
+          schema: { type: boolean, default: true }
+        - name: includeSiblings
+          in: query
+          schema: { type: boolean, default: false }
+        - name: view
+          in: query
+          schema: { $ref: "#/components/schemas/View" }
+      responses:
+        "200":
+          description: Flat projection with synthetic union nodes and deduplicated person nodes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeProjection" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/tree/{personId}/ancestors:
+    get:
+      operationId: getTreeByPersonIdAncestors
+      tags: [tree]
+      summary: Ancestor-only projection (idea.md §16)
+      parameters:
+        - $ref: "#/components/parameters/PathPersonId"
+        - name: ancestors
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 6, default: 4 }
+        - name: view
+          in: query
+          schema: { $ref: "#/components/schemas/View" }
+      responses:
+        "200":
+          description: Ancestor projection.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeProjection" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/tree/{personId}/descendants:
+    get:
+      operationId: getTreeByPersonIdDescendants
+      tags: [tree]
+      summary: Descendant-only projection (idea.md §16)
+      parameters:
+        - $ref: "#/components/parameters/PathPersonId"
+        - name: descendants
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 6, default: 2 }
+        - name: view
+          in: query
+          schema: { $ref: "#/components/schemas/View" }
+      responses:
+        "200":
+          description: Descendant projection.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TreeProjection" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/relationship-path:
+    get:
+      operationId: getRelationshipPath
+      tags: [tree]
+      summary: Resolve the kinship between two people (idea.md §11)
+      parameters:
+        - name: personA
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: personB
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: maxDepth
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10, default: 6 }
+        - name: view
+          in: query
+          schema: { $ref: "#/components/schemas/View" }
+      responses:
+        "200":
+          description: Relationship path result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RelationshipPathResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+components:
+  securitySchemes:
+    ServiceHmac:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: |
+        HMAC-SHA256 service authentication. The `X-Signature` header carries
+        `hex(HMAC-SHA256(SERVICE_HMAC_SECRET, canonicalPayload))`, but the scheme also
+        requires the full header set (`X-Service-Id`, `X-Request-Timestamp`,
+        `X-Request-Nonce`, `X-Idempotency-Key`, `X-Body-SHA256`, `X-Actor-Id`,
+        `X-Actor-Role`) — see the API description and `contracts/hmac.md`.
+
+  parameters:
+    XServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      schema: { type: string }
+      description: Service identity.
+    XRequestTimestamp:
+      name: X-Request-Timestamp
+      in: header
+      required: true
+      schema: { type: string, format: date-time }
+      description: RFC3339 UTC; rejected if skew > ±5 minutes.
+    XRequestNonce:
+      name: X-Request-Nonce
+      in: header
+      required: true
+      schema: { type: string, format: uuid }
+      description: Single-use nonce (replay protection).
+    XIdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, format: uuid }
+      description: Required on mutating requests; enables idempotent replay.
+    XBodySha256:
+      name: X-Body-SHA256
+      in: header
+      required: true
+      schema: { type: string }
+      description: Lowercase hex SHA-256 of the raw request body (empty-string hash when no body).
+    XActorId:
+      name: X-Actor-Id
+      in: header
+      required: true
+      schema: { type: string }
+      description: Acting principal; trusted only because it is signed.
+    XActorRole:
+      name: X-Actor-Role
+      in: header
+      required: true
+      schema: { type: string, enum: [admin, public] }
+      description: Authorization role; trusted only because it is signed.
+    XSignature:
+      name: X-Signature
+      in: header
+      required: true
+      schema: { type: string }
+      description: hex(HMAC-SHA256(secret, canonicalPayload)).
+    PathId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PathPersonId:
+      name: personId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: Validation error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Authentication failed (generic message; idea.md §4).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Insufficient role.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: Conflict (invalid transition, duplicate, or idempotency key reused with a different body).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    UnprocessableEntity:
+      description: Domain rule violation (e.g. cycle_detected, unknown_person).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    PayloadTooLarge:
+      description: Body exceeds the allowed size.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    TooManyRequests:
+      description: Rate limit exceeded (idea.md §6).
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds to wait before retrying.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    SubmissionState:
+      description: New submission status.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [id, status]
+            properties:
+              id: { type: string, format: uuid }
+              status: { $ref: "#/components/schemas/SubmissionStatus" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Machine-readable code (e.g. unauthorized, cycle_detected, rate_limited).
+            message:
+              type: string
+              description: Safe, human-readable message; never leaks internals.
+            requestId:
+              type: string
+              description: Correlation id echoed from X-Request-Id.
+
+    Readiness:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, unavailable]
+
+    # ----- Enums -----
+    SubmissionStatus:
+      type: string
+      enum: [draft, pending, in_review, processed, rejected, spam]
+    ResolutionStatus:
+      type: string
+      enum: [pending, created, linked, deferred, ignored]
+    LivingStatus:
+      type: string
+      enum: [living, deceased, unknown]
+    PrivacyLevel:
+      type: string
+      enum: [private, family, public]
+    NameType:
+      type: string
+      enum: [primary, birth, married, alias, nickname, transliterated]
+    EventType:
+      type: string
+      enum: [birth, death, residence, migration, occupation, education]
+    DatePrecision:
+      type: string
+      enum: [exact, month, year, approximate, range, unknown]
+    ParentChildType:
+      type: string
+      enum: [biological, adoptive, step, foster, guardian, unknown]
+    VerificationStatus:
+      type: string
+      enum: [proposed, confirmed, disputed, rejected]
+    UnionType:
+      type: string
+      enum: [marriage, partnership, unknown]
+    SourceType:
+      type: string
+      enum:
+        [
+          questionnaire,
+          interview,
+          birth_certificate,
+          marriage_certificate,
+          death_certificate,
+          church_register,
+          family_document,
+          photograph,
+          grave_marker,
+          other,
+        ]
+    ConsentType:
+      type: string
+      enum: [data_processing, contact, family_visibility, public_display, media_usage]
+    MatchCandidateStatus:
+      type: string
+      enum: [pending, accepted, rejected, deferred]
+    View:
+      type: string
+      enum: [admin, public]
+      default: public
+
+    # ----- Invites -----
+    CreateInviteRequest:
+      type: object
+      required: [recipientLabel]
+      properties:
+        recipientLabel: { type: string, maxLength: 200 }
+        campaign: { type: string, maxLength: 200 }
+        expiresAt: { type: string, format: date-time }
+        maxSubmissions: { type: integer, minimum: 1, default: 1 }
+    Invite:
+      type: object
+      required: [id, recipientLabel, maxSubmissions, usedSubmissions, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        recipientLabel: { type: string }
+        campaign: { type: [string, "null"] }
+        expiresAt: { type: [string, "null"], format: date-time }
+        maxSubmissions: { type: integer }
+        usedSubmissions: { type: integer }
+        revokedAt: { type: [string, "null"], format: date-time }
+        expired: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    InviteWithToken:
+      allOf:
+        - $ref: "#/components/schemas/Invite"
+        - type: object
+          required: [token]
+          properties:
+            token:
+              type: string
+              description: The plain invitation token — returned only once, never stored.
+    InviteValidation:
+      type: object
+      required: [valid]
+      properties:
+        valid: { type: boolean }
+        reason:
+          type: [string, "null"]
+          enum: [expired, revoked, exhausted, not_found, null]
+
+    # ----- Submissions -----
+    CreateSubmissionRequest:
+      type: object
+      required: [payload]
+      properties:
+        payload:
+          $ref: "#/components/schemas/QuestionnairePayload"
+        inviteToken:
+          type: [string, "null"]
+          description: Optional single-use invitation token.
+        clientFingerprint:
+          type: string
+          description: HMAC fingerprint of the client IP (never the raw IP).
+        spamSignal:
+          type: [string, "null"]
+          enum: [honeypot, too_fast, null]
+    QuestionnairePayload:
+      type: object
+      description: Versioned questionnaire payload assembled by the BFF (idea.md §9). Detailed schema owned by the web app (Task 13); treated as JSON here.
+      required: [payloadVersion, participant, people]
+      properties:
+        payloadVersion: { type: integer, const: 1 }
+        participant: { type: object, additionalProperties: true }
+        people:
+          type: array
+          items: { type: object, additionalProperties: true }
+        relationships:
+          type: array
+          items: { type: object, additionalProperties: true }
+        origin: { type: object, additionalProperties: true }
+        consents:
+          type: array
+          items: { type: object, additionalProperties: true }
+        meta: { type: object, additionalProperties: true }
+      additionalProperties: true
+    SubmissionListItem:
+      type: object
+      required: [id, status, submittedAt]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/SubmissionStatus" }
+        participantName: { type: [string, "null"] }
+        campaign: { type: [string, "null"] }
+        peopleCount: { type: integer }
+        hasMaterials: { type: boolean }
+        submittedAt: { type: [string, "null"], format: date-time }
+    Submission:
+      type: object
+      required: [id, status, people, relationships, consents]
+      properties:
+        id: { type: string, format: uuid }
+        inviteId: { type: [string, "null"], format: uuid }
+        status: { $ref: "#/components/schemas/SubmissionStatus" }
+        originalPayload: { $ref: "#/components/schemas/QuestionnairePayload" }
+        clientFingerprintPrefix:
+          type: [string, "null"]
+          description: Only a short prefix of the fingerprint is ever returned.
+        spamReason: { type: [string, "null"] }
+        submittedAt: { type: [string, "null"], format: date-time }
+        processingStartedAt: { type: [string, "null"], format: date-time }
+        processedAt: { type: [string, "null"], format: date-time }
+        rejectedAt: { type: [string, "null"], format: date-time }
+        people:
+          type: array
+          items: { $ref: "#/components/schemas/SubmissionPerson" }
+        relationships:
+          type: array
+          items: { $ref: "#/components/schemas/SubmissionRelationship" }
+        consents:
+          type: array
+          items: { $ref: "#/components/schemas/Consent" }
+    SubmissionPerson:
+      type: object
+      required: [id, localKey, resolutionStatus]
+      properties:
+        id: { type: string, format: uuid }
+        localKey: { type: string, example: SELF }
+        firstName: { type: [string, "null"] }
+        middleName: { type: [string, "null"] }
+        surname: { type: [string, "null"] }
+        birthSurname: { type: [string, "null"] }
+        nickname: { type: [string, "null"] }
+        birthYearFrom: { type: [integer, "null"] }
+        birthYearTo: { type: [integer, "null"] }
+        deathYearFrom: { type: [integer, "null"] }
+        deathYearTo: { type: [integer, "null"] }
+        birthplaceText: { type: [string, "null"] }
+        residenceText: { type: [string, "null"] }
+        livingStatus: { $ref: "#/components/schemas/LivingStatus" }
+        normalizedName: { type: [string, "null"] }
+        matchedPersonId: { type: [string, "null"], format: uuid }
+        resolutionStatus: { $ref: "#/components/schemas/ResolutionStatus" }
+    SubmissionRelationship:
+      type: object
+      required: [id, fromLocalKey, toLocalKey, relationshipType]
+      properties:
+        id: { type: string, format: uuid }
+        fromLocalKey: { type: string }
+        toLocalKey: { type: string }
+        relationshipType:
+          type: string
+          enum: [parent, partner, sibling, child, other]
+        notes: { type: [string, "null"] }
+    Consent:
+      type: object
+      required: [consentType, consentVersion, accepted]
+      properties:
+        consentType: { $ref: "#/components/schemas/ConsentType" }
+        consentVersion: { type: string }
+        accepted: { type: boolean }
+        acceptedAt: { type: [string, "null"], format: date-time }
+        withdrawnAt: { type: [string, "null"], format: date-time }
+    ReasonRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, maxLength: 2000 }
+
+    # ----- Matching -----
+    MatchReason:
+      type: object
+      required: [field, score, description]
+      properties:
+        field: { type: string, example: normalizedName }
+        score: { type: integer }
+        description: { type: string, example: "Пълно съвпадение на името" }
+    MatchCandidate:
+      type: object
+      required: [id, submissionPersonId, canonicalPersonId, score, reasons, status]
+      properties:
+        id: { type: string, format: uuid }
+        submissionPersonId: { type: string, format: uuid }
+        canonicalPersonId: { type: string, format: uuid }
+        score: { type: integer, minimum: 0, maximum: 100, example: 86 }
+        reasons:
+          type: array
+          items: { $ref: "#/components/schemas/MatchReason" }
+        status: { $ref: "#/components/schemas/MatchCandidateStatus" }
+        person: { $ref: "#/components/schemas/PersonSummary" }
+
+    # ----- People -----
+    CreatePersonRequest:
+      type: object
+      required: [firstName, surname, livingStatus]
+      properties:
+        firstName: { type: string, maxLength: 100 }
+        middleName: { type: [string, "null"], maxLength: 100 }
+        surname: { type: string, maxLength: 100 }
+        birthSurname: { type: [string, "null"], maxLength: 100 }
+        nickname: { type: [string, "null"], maxLength: 100 }
+        livingStatus: { $ref: "#/components/schemas/LivingStatus" }
+        privacyLevel: { $ref: "#/components/schemas/PrivacyLevel" }
+    PatchPersonRequest:
+      type: object
+      properties:
+        privacyLevel: { $ref: "#/components/schemas/PrivacyLevel" }
+        livingStatus: { $ref: "#/components/schemas/LivingStatus" }
+        notes: { type: [string, "null"], maxLength: 4000 }
+    MergeRequest:
+      type: object
+      required: [targetPersonId, reason]
+      properties:
+        targetPersonId: { type: string, format: uuid }
+        reason: { type: string, maxLength: 2000 }
+    MergedRedirect:
+      type: object
+      required: [mergedIntoPersonId]
+      properties:
+        mergedIntoPersonId: { type: string, format: uuid }
+    PersonName:
+      type: object
+      required: [id, nameType, isPreferred]
+      properties:
+        id: { type: string, format: uuid }
+        firstName: { type: [string, "null"] }
+        middleName: { type: [string, "null"] }
+        surname: { type: [string, "null"] }
+        birthSurname: { type: [string, "null"] }
+        nickname: { type: [string, "null"] }
+        normalizedName: { type: [string, "null"] }
+        transliteratedName: { type: [string, "null"] }
+        nameType: { $ref: "#/components/schemas/NameType" }
+        isPreferred: { type: boolean }
+        sourceId: { type: [string, "null"], format: uuid }
+    PersonEvent:
+      type: object
+      required: [id, eventType, datePrecision]
+      properties:
+        id: { type: string, format: uuid }
+        eventType: { $ref: "#/components/schemas/EventType" }
+        value: { type: [string, "null"] }
+        placeId: { type: [string, "null"], format: uuid }
+        placeLabel: { type: [string, "null"] }
+        dateFrom: { type: [string, "null"], format: date }
+        dateTo: { type: [string, "null"], format: date }
+        yearFrom: { type: [integer, "null"] }
+        yearTo: { type: [integer, "null"] }
+        datePrecision: { $ref: "#/components/schemas/DatePrecision" }
+    PersonSummary:
+      type: object
+      required: [id, label, living]
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string }
+        birthYear: { type: [integer, "null"] }
+        deathYear: { type: [integer, "null"] }
+        living: { type: boolean }
+        privacyLevel: { $ref: "#/components/schemas/PrivacyLevel" }
+        merged: { type: boolean }
+    Person:
+      type: object
+      required: [id, livingStatus, privacyLevel, names]
+      properties:
+        id: { type: string, format: uuid }
+        livingStatus: { $ref: "#/components/schemas/LivingStatus" }
+        privacyLevel: { $ref: "#/components/schemas/PrivacyLevel" }
+        notes: { type: [string, "null"] }
+        mergedIntoPersonId: { type: [string, "null"], format: uuid }
+        deletedAt: { type: [string, "null"], format: date-time }
+        names:
+          type: array
+          items: { $ref: "#/components/schemas/PersonName" }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/PersonEvent" }
+        parents:
+          type: array
+          items: { $ref: "#/components/schemas/ParentChildRelationship" }
+        children:
+          type: array
+          items: { $ref: "#/components/schemas/ParentChildRelationship" }
+        unions:
+          type: array
+          items: { $ref: "#/components/schemas/FamilyUnion" }
+        sourceCount: { type: integer }
+
+    # ----- Relationships -----
+    CreateParentChildRequest:
+      type: object
+      required: [parentId, childId, relationshipType]
+      properties:
+        parentId: { type: string, format: uuid }
+        childId: { type: string, format: uuid }
+        relationshipType: { $ref: "#/components/schemas/ParentChildType" }
+        familyUnionId: { type: [string, "null"], format: uuid }
+        verificationStatus: { $ref: "#/components/schemas/VerificationStatus" }
+        confidence: { type: [integer, "null"], minimum: 0, maximum: 100 }
+    PatchParentChildRequest:
+      type: object
+      properties:
+        verificationStatus: { $ref: "#/components/schemas/VerificationStatus" }
+        relationshipType: { $ref: "#/components/schemas/ParentChildType" }
+        confidence: { type: [integer, "null"], minimum: 0, maximum: 100 }
+        familyUnionId: { type: [string, "null"], format: uuid }
+    ParentChildRelationship:
+      type: object
+      required: [id, parentId, childId, relationshipType, verificationStatus]
+      properties:
+        id: { type: string, format: uuid }
+        parentId: { type: string, format: uuid }
+        childId: { type: string, format: uuid }
+        relationshipType: { $ref: "#/components/schemas/ParentChildType" }
+        familyUnionId: { type: [string, "null"], format: uuid }
+        verificationStatus: { $ref: "#/components/schemas/VerificationStatus" }
+        confidence: { type: [integer, "null"] }
+    FamilyUnion:
+      type: object
+      required: [id, unionType, partnerIds]
+      properties:
+        id: { type: string, format: uuid }
+        unionType: { $ref: "#/components/schemas/UnionType" }
+        partnerIds:
+          type: array
+          items: { type: string, format: uuid }
+        childIds:
+          type: array
+          items: { type: string, format: uuid }
+
+    # ----- Tree projection (idea.md §13) -----
+    TreeProjection:
+      type: object
+      required: [rootPersonId, nodes, edges, truncated]
+      properties:
+        rootPersonId: { type: string, format: uuid }
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/TreeNode" }
+        edges:
+          type: array
+          items: { $ref: "#/components/schemas/TreeEdge" }
+        truncated: { type: boolean }
+      examples:
+        - rootPersonId: "11111111-1111-1111-1111-111111111111"
+          nodes:
+            - id: "person-uuid"
+              type: person
+              label: "Иван Митовски"
+              birthYear: 1952
+              deathYear: null
+              living: true
+              generation: 0
+              privacyLevel: private
+            - id: "union-uuid"
+              type: union
+              unionType: marriage
+              generation: -1
+          edges:
+            - id: "edge-uuid"
+              source: "person-uuid"
+              target: "union-uuid"
+              type: partner
+            - id: "edge-uuid-2"
+              source: "union-uuid"
+              target: "person-child-uuid"
+              type: child
+              relationshipType: biological
+          truncated: false
+    TreeNode:
+      type: object
+      required: [id, type, generation]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [person, union]
+        label: { type: [string, "null"] }
+        birthYear: { type: [integer, "null"] }
+        deathYear: { type: [integer, "null"] }
+        birthDecade:
+          type: [string, "null"]
+          description: Public masked value for living people, e.g. "1980-те".
+        living: { type: [boolean, "null"] }
+        generation: { type: integer }
+        privacyLevel: { $ref: "#/components/schemas/PrivacyLevel" }
+        unionType: { $ref: "#/components/schemas/UnionType" }
+        verificationState: { $ref: "#/components/schemas/VerificationStatus" }
+        sourceCount: { type: [integer, "null"] }
+    TreeEdge:
+      type: object
+      required: [id, source, target, type]
+      properties:
+        id: { type: string }
+        source: { type: string }
+        target: { type: string }
+        type:
+          type: string
+          enum: [partner, child]
+        relationshipType: { $ref: "#/components/schemas/ParentChildType" }
+        verificationStatus: { $ref: "#/components/schemas/VerificationStatus" }
+
+    # ----- Relationship path (idea.md §11) -----
+    RelationshipPathResult:
+      type: object
+      required: [connected]
+      properties:
+        connected: { type: boolean }
+        relationshipLabelBg:
+          type: [string, "null"]
+          example: "втори братовчеди"
+        commonAncestors:
+          type: array
+          items: { $ref: "#/components/schemas/PersonSummary" }
+        path:
+          type: array
+          items: { $ref: "#/components/schemas/PathStep" }
+        confidence: { type: [integer, "null"], example: 90 }
+    PathStep:
+      type: object
+      required: [personId, relation]
+      properties:
+        personId: { type: string, format: uuid }
+        label: { type: [string, "null"] }
+        relation:
+          type: string
+          enum: [parent, child, partner]
