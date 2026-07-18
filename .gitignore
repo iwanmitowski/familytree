@@ -1,0 +1,63 @@
+# ---- Secrets & environment ----
+# Never commit real env files. Only *.example templates are tracked.
+.env
+.env.*
+!.env.example
+!env.example
+*.env
+!example.env
+
+# Encryption / backup artifacts
+*.age
+*.dump
+*.sql.gz
+*.tar.gz
+
+# ---- Node / Next.js (apps/web) ----
+node_modules/
+.next/
+out/
+build/
+.turbo/
+coverage/
+*.tsbuildinfo
+.eslintcache
+.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Go (services/api) ----
+# Compiled binaries and test artifacts. NOTE: db/generated (sqlc output) IS committed.
+/services/api/api
+/services/api/api.exe
+/services/api/cmd/api/api
+/services/api/cmd/api/api.exe
+*.test
+*.out
+__debug_bin*
+
+# ---- Playwright / E2E ----
+/apps/web/playwright-report/
+/apps/web/test-results/
+/apps/web/.playwright/
+
+# ---- Docker ----
+docker-compose.override.yml
+docker-compose.*.override.yml
+
+# ---- IDE / OS ----
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Local scratch ----
+/tmp/
+/.scratch/

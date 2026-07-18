@@ -1,0 +1,39 @@
+# EditorConfig — https://editorconfig.org
+# Repo-wide baseline: UTF-8, LF, final newline, trimmed trailing whitespace.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Go uses tabs (gofmt is authoritative).
+[*.go]
+indent_style = tab
+
+# Go module files are tab-indented too.
+[go.mod]
+indent_style = tab
+
+[go.sum]
+indent_style = tab
+
+# Makefiles require literal tabs.
+[Makefile]
+indent_style = tab
+
+[*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,yaml,yml,md,css,scss,html}]
+indent_style = space
+indent_size = 2
+
+# Shell scripts target the Linux server/CI.
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# Markdown: keep trailing whitespace (hard line breaks) but still normalize newlines.
+[*.md]
+trim_trailing_whitespace = false

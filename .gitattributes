@@ -1,0 +1,39 @@
+# Normalize line endings. Text files are stored with LF in the repository.
+* text=auto eol=lf
+
+# Scripts that run on the Linux server/CI MUST stay LF regardless of platform.
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Go tooling expects LF.
+*.go text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+
+# Web sources / config.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+
+# Windows-only files (none yet, but keep CRLF if ever added).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.pdf binary
+*.age binary
+*.dump binary
+*.gz binary
+*.woff binary
+*.woff2 binary
