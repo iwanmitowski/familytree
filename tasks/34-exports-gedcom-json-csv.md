@@ -3,10 +3,10 @@
 **Depends on:** 23 · **Size:** M · **Spec:** idea.md §1.12, §21 (export artifacts), §18 (`scripts/export-gedcom.sh`)
 
 ## Goal
-Deterministic data exports as Go subcommands: GEDCOM for genealogy software, JSON for machine re-import, CSVs for spreadsheets — full (admin/backup) and privacy-redacted (`--public`) variants.
+Deterministic data exports as CLI subcommands: GEDCOM for genealogy software, JSON for machine re-import, CSVs for spreadsheets — full (admin/backup) and privacy-redacted (`--public`) variants.
 
 ## Requirements
-1. Go subcommands (reuse repositories; no HTTP): `api export gedcom|json|csv-people|csv-relationships --out <path> [--public]`.
+1. CLI subcommands in `services/api` (reuse the repositories/query modules; no HTTP), runnable as `node dist/export.js gedcom|json|csv-people|csv-relationships --out <path> [--public]` with an `npm run export` script wrapper.
 2. **GEDCOM 5.5.1**, UTF-8:
    - `HEAD` (CHAR UTF-8, SOUR placeholder), one `INDI` per non-merged non-deleted person (stable ordering by id for deterministic output): `NAME` with surname slashes from the preferred primary name, other names as additional `NAME`/`NICK`; `BIRT`/`DEAT` with honest dates — `date_precision` mapping: exact → `DD MON YYYY`, month → `MON YYYY`, year → `YYYY`, approximate → `ABT YYYY`, range → `BET YYYY AND YYYY`, unknown → omitted (never a fake date — conventions §3); `RESI` with place text;
    - `FAM` records from family_unions (HUSB/WIFE/CHIL via union partners + child edges with that union) and synthetic FAMs for unionless confirmed parent pairs; `FAMC`/`FAMS` links; adoptive edges: `CHIL` + `PEDI adopted`;
@@ -21,6 +21,6 @@ Deterministic data exports as Go subcommands: GEDCOM for genealogy software, JSO
 - Deterministic byte-identical re-runs on an unchanged DB; public variant contains zero living-person data (deep-scan test reusing Task 30's forbidden list); GEDCOM imports without structural errors into a validator-parser test.
 
 ## Verification
-- Standard Go verification + integration (fixture DB → run all exports → golden compare).
+- Standard API verification + integration (fixture DB → run all exports → golden compare).
 - Update backup script wiring; run a local backup to confirm artifacts appear in the manifest.
 - Commit as `task-34: gedcom json csv exports`.

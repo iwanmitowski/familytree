@@ -28,7 +28,7 @@ Adopt **option 3**. Next.js Route Handlers act as a BFF: they validate input, ve
 
 **Negative / risks**
 - The shared secret must be identical on Vercel and Oracle and rotated carefully (documented in deployment).
-- Two implementations of the signing algorithm (Go, TypeScript) must stay byte-compatible — mitigated by shared test vectors enforced in CI.
+- The signing algorithm lives in `packages/shared` and is used by both the BFF (signing) and the API (verification), so there is a single implementation (see ADR 0004); golden test vectors in CI guard against regressions.
 - All traffic funnels through the BFF; it must remain thin and must normalize errors so backend internals never leak (idea.md §17).
 
 ## Alternatives rejected

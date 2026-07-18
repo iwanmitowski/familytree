@@ -14,12 +14,12 @@ Model partnerships/marriages as unions with partner rows — the structure the t
    - `DELETE /v1/internal/unions/{id}` — only when no parent_child edge references it (else 409 `union_in_use`).
 2. A person may belong to many unions — verify no accidental unique constraint prevents this; there is no `spouse_id` anywhere (idea.md §8).
 3. Extend the person aggregate (Task 21 GET) with the person's unions (partners resolved with preferred names).
-4. sqlc queries as needed; keep union children discoverable for Task 29 (`list parent_child by family_union_id`).
+4. Kysely queries as needed; keep union children discoverable for Task 29 (`list parent_child by family_union_id`).
 
 ## Acceptance criteria
 - Person with two sequential marriages: two unions, both listed on the aggregate; duplicate partner insert fails; deleting a union referenced by a child edge fails with 409.
 
 ## Verification
 - Integration tests for the cases above.
-- Standard Go verification + `go test -tags=integration ./...`.
+- Standard API verification + `npm run test:integration -w @familytree/api`.
 - Commit as `task-23: family unions`.

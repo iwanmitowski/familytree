@@ -10,12 +10,14 @@ A non-commercial genealogy application for the Mitovski family: a public Bulgari
 
 **The authoritative functional specification is `idea.md` (Bulgarian).** Every task references its sections (`idea.md §N`). When a task and `idea.md` disagree, `idea.md` wins unless the task explicitly documents a decision.
 
+> **Backend stack note:** the Oracle API is **TypeScript/Node** (Hono + pg + Kysely), not Go. idea.md §2 named Go; that was superseded — see [ADR 0004](docs/adr/0004-typescript-node-backend.md). The repo is an npm-workspaces monorepo with a shared `packages/shared` (HMAC + Zod). All product behavior, schema, and security are unchanged.
+
 ```text
 Browser
   → Vercel Next.js (frontend + BFF, Auth.js admin auth, Turnstile)
   → Vercel Route Handler (validate, fingerprint, HMAC-sign)
   → Oracle VM: Caddy (TLS, 80/443)
-  → Go API (chi, pgx, sqlc, HMAC verification)  [linux/arm64, Ampere A1]
+  → TypeScript/Node API (Hono, pg, Kysely, HMAC verification)  [linux/arm64, Ampere A1]
   → PostgreSQL 16 (Docker, private network only, no public port)
 ```
 
@@ -60,7 +62,7 @@ verify, update PROGRESS.md, commit, stop.
 
 | # | Task file | Title | Depends on | Size |
 |---|-----------|-------|------------|------|
-| 04 | `04-go-api-skeleton-dev-env.md` | Go API skeleton + local dev environment | 01 | M |
+| 04 | `04-api-skeleton-dev-env.md` | TypeScript/Node API skeleton + local dev environment | 01 | M |
 | 05 | `05-migrations-staging-layer.md` | Migrations: staging layer (invites, submissions, consents, audit, nonces) | 04 | M |
 | 06 | `06-migrations-canonical-layer.md` | Migrations: canonical layer (people, relationships, unions, sources, evidence) | 05 | L |
 | 07 | `07-hmac-auth-middleware.md` | HMAC service authentication middleware + test vectors | 05 | L |
@@ -77,7 +79,7 @@ verify, update PROGRESS.md, commit, stop.
 | 13 | `13-questionnaire-schema-validation.md` | Questionnaire Zod schemas, payload model, draft persistence | 08 | M |
 | 14 | `14-questionnaire-ui-steps-1-4.md` | Questionnaire UI: steps 1–4 + multi-step shell | 13 | L |
 | 15 | `15-questionnaire-ui-steps-5-7.md` | Questionnaire UI: steps 5–7, consent, summary, Turnstile | 14 | L |
-| 16 | `16-submission-pipeline.md` | Submission pipeline end-to-end (BFF + Go, anti-abuse, rate limits) | 09, 12, 15 | L |
+| 16 | `16-submission-pipeline.md` | Submission pipeline end-to-end (BFF + API, anti-abuse, rate limits) | 09, 12, 15 | L |
 | 17 | `17-admin-auth.md` | Admin authentication (Auth.js, allowlist, admin shell) | 08 | M |
 | 18 | `18-admin-submissions-inbox.md` | Admin submissions inbox + status workflow + invites UI | 16, 17 | L |
 

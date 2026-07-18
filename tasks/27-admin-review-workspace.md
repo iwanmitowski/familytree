@@ -5,7 +5,7 @@
 ## Goal
 The heart of the moderation workflow: on a submission in review, resolve every described person (create / link / defer / ignore) with match candidates on screen, then confirm the proposed family relationships, then mark the submission processed.
 
-## Requirements — Go API
+## Requirements — API
 1. `GET /v1/internal/submissions/{id}/suggested-relationships`: maps `submission_relationships` + the standard local-key semantics into **canonical edge suggestions** using resolved `matched_person_id`s: SELF—FATHER/MOTHER → parent edges; FATHER—PATERNAL_GRANDFATHER/…MOTHER → parent edges; SELF—SIBLING_n → *shared-parent suggestion* (never a stored sibling edge — idea.md §11: siblings derive from parents); SELF—CHILD_n → parent edge (SELF as parent); SELF—PARTNER_n → union suggestion. Response items: `{kind: 'parent_child'|'union', fromPersonId?, toPersonId?, viaLocalKeys, status: ready|missing_person|already_exists}` (`already_exists` checked against current edges).
 2. `POST /v1/internal/submissions/{id}/complete`: guard — submission `in_review` and **no** submission person left `resolution_status='pending'` (deferred/ignored are acceptable); sets `processed` + `processed_at`; audit. Update OpenAPI (+ the ignore/defer resolution endpoints below).
 3. `POST /v1/internal/submission-people/{id}/defer` and `/ignore` `{reason?}` — set resolution_status accordingly; audit.
@@ -22,6 +22,6 @@ The heart of the moderation workflow: on a submission in review, resolve every d
 - End-to-end in dev: questionnaire submission → review → resolve SELF (create), FATHER (create), link MOTHER to an existing person → confirm SELF—FATHER and SELF—MOTHER edges → complete submission → people and confirmed edges visible in the people browser; completing with an unresolved person is blocked by the API (409) and the UI explains it.
 
 ## Verification
-- Go unit tests for the local-key → edge mapping matrix (incl. grandparents and sibling-as-hint); integration tests for complete-guard and defer/ignore; web tests for the resolution card actions and the confirm flow (mocked).
-- Standard Go + web verification; manual dev run of the full loop.
+- API unit tests for the local-key → edge mapping matrix (incl. grandparents and sibling-as-hint); integration tests for complete-guard and defer/ignore; web tests for the resolution card actions and the confirm flow (mocked).
+- Standard API + web verification; manual dev run of the full loop.
 - Commit as `task-27: admin review workspace`.

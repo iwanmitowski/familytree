@@ -5,7 +5,7 @@
 ## Goal
 Admins can see incoming submissions, inspect full detail, and move them through the status workflow; plus a management page for invitation tokens.
 
-## Requirements — Go API
+## Requirements — API
 1. Status-transition endpoints (idea.md §16), each guarded by a state machine (invalid transition → 409 `invalid_transition`), admin role, audit entry:
    - `POST /v1/internal/submissions/{id}/start-review`: `pending → in_review`, sets `processing_started_at`;
    - `POST /v1/internal/submissions/{id}/reject` `{reason}`: `pending|in_review → rejected`, sets `rejected_at`;
@@ -28,7 +28,7 @@ Admins can see incoming submissions, inspect full detail, and move them through 
 - A submission naming a referral in step 5 shows up in „Потенциални контакти" and „Създай покана" opens the prefilled form; a submission answering „да" on materials shows the „Материали" badge in the list and the answer in the detail view.
 
 ## Verification
-- Go integration tests: every legal + illegal transition; audit rows written; contact-leads aggregation (consented participant + referral extracted, non-consented and spam excluded); `hasMaterials` derivation.
+- API integration tests: every legal + illegal transition; audit rows written; contact-leads aggregation (consented participant + referral extracted, non-consented and spam excluded); `hasMaterials` derivation.
 - Web tests: list renders fixtures incl. „Материали" badge, detail renders payload sections, actions call the right routes (mocked), token-shown-once dialog, leads panel renders and prefills the invite form.
-- Standard Go + web verification; manual dev walk-through.
+- Standard API + web verification; manual dev walk-through.
 - Commit as `task-18: admin submissions inbox`.

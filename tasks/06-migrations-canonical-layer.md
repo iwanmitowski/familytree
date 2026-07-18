@@ -3,10 +3,10 @@
 **Depends on:** 05 · **Size:** L · **Spec:** idea.md §8 (people, person_names, places, person_events, parent_child_relationships, family_unions, union_partners, sources, evidence, match_candidates, person_merge_history), §7, §11
 
 ## Goal
-Goose migrations + basic sqlc queries for the canonical genealogy graph and its supporting tables.
+Kysely migrations + basic typed queries for the canonical genealogy graph and its supporting tables.
 
 ## Requirements
-1. New goose migration(s), same conventions as Task 05. Tables per idea.md §8:
+1. New Kysely migration file(s), same conventions as Task 05. Tables per idea.md §8:
    - `people`: `living_status CHECK IN ('living','deceased','unknown')`, `privacy_level TEXT NOT NULL DEFAULT 'private' CHECK IN ('private','family','public')`, `notes`, `merged_into_person_id UUID REFERENCES people(id)`, `deleted_at`, timestamps.
    - `person_names`: fields per §8; `name_type CHECK IN ('primary','birth','married','alias','nickname','transliterated')`; `is_preferred BOOLEAN NOT NULL DEFAULT false`; partial unique index: one preferred name per `(person_id, name_type)` `WHERE is_preferred`; `source_id UUID` (FK added after `sources` exists in the same migration set).
    - `places`: per §8; `place_type CHECK IN ('country','region','municipality','settlement')`; `parent_place_id` self-FK; `UNIQUE (normalized_name, place_type, parent_place_id)` (nulls handled via `NULLS NOT DISTINCT` or a coalesce-based unique index).
@@ -19,7 +19,7 @@ Goose migrations + basic sqlc queries for the canonical genealogy graph and its 
    - `person_merge_history`: per §8 (`source_person_id`, `target_person_id`, `actor_id`, `reason`, `snapshot JSONB NOT NULL`, `created_at`).
 2. Add the deferred FK `submission_people.matched_person_id → people(id)`.
 3. Indexes: `person_names (normalized_name)`, `person_names (person_id)`, `parent_child_relationships (parent_id)` and `(child_id)`, `union_partners (person_id)`, `person_events (person_id, event_type)`, `evidence (subject_type, subject_id)`, `match_candidates (submission_person_id)`, `people (merged_into_person_id)`.
-4. sqlc queries (basics used by Stage 3): person insert/get/patch/list-search-by-normalized-name; person_names insert/list; places get-by-normalized/insert; person_events insert/list; parent_child insert/get/patch/delete/list-by-person; unions + partners insert/list; sources insert/get; evidence insert/list-by-subject; match_candidates upsert/list/set-status; merge history insert. Run `sqlc generate`, commit output.
+4. Typed query helpers (Kysely, basics used by Stage 3): person insert/get/patch/list-search-by-normalized-name; person_names insert/list; places get-by-normalized/insert; person_events insert/list; parent_child insert/get/patch/delete/list-by-person; unions + partners insert/list; sources insert/get; evidence insert/list-by-subject; match_candidates upsert/list/set-status; merge history insert. Run `npm run codegen -w @familytree/api` to refresh `src/db/generated` and commit it.
 5. Update `docs/data-model.md` (tables + ER diagram) to match exactly.
 
 ## Acceptance criteria
@@ -28,5 +28,5 @@ Goose migrations + basic sqlc queries for the canonical genealogy graph and its 
 
 ## Verification
 - Integration tests for the cycle above + constraint cases.
-- Standard Go verification + `go test -tags=integration ./...`.
+- Standard API verification + `npm run test:integration -w @familytree/api`.
 - Commit as `task-06: canonical layer migrations`.

@@ -15,7 +15,7 @@ Browser
 ```
 
 - **Frontend + BFF:** Next.js (App Router) + TypeScript on Vercel. The browser never talks to the Oracle API directly.
-- **Backend:** Go API (chi, pgx, sqlc) behind a Caddy reverse proxy on an Oracle Always Free ARM64 VM. All business endpoints require HMAC-signed service requests.
+- **Backend:** TypeScript/Node API (Hono, pg, Kysely) behind a Caddy reverse proxy on an Oracle Always Free ARM64 VM. All business endpoints require HMAC-signed service requests. (idea.md named Go; superseded — see [ADR 0004](docs/adr/0004-typescript-node-backend.md).)
 - **Database:** PostgreSQL 16 in Docker, reachable only on a private Docker network — never exposed to the internet.
 - **Data model:** three layers — immutable submissions → staging/candidate records → canonical confirmed genealogy graph. Only an admin promotes data between layers.
 
@@ -23,7 +23,8 @@ Browser
 
 ```text
 apps/web/        Next.js application (frontend + BFF)
-services/api/    Go API service (cmd, internal packages, db migrations/queries/generated)
+services/api/    TypeScript/Node API (Hono; src/<domain>, db/migrations, src/db/generated, tests)
+packages/shared/ Shared HMAC signing + canonical payload + Zod schemas/types (BFF + API)
 contracts/       OpenAPI spec and cross-service contracts (e.g. HMAC signing)
 infra/oracle/    Production Docker Compose, Caddyfile, cloud-init, firewall notes
 scripts/         Deploy, backup/restore, export scripts (target Linux/CI)
@@ -41,15 +42,18 @@ docs/            Architecture, data model, security, deployment (docs/adr/ for d
 
 ## Quickstart
 
-> Filled in as the stack lands. Prerequisites: Docker Desktop, Node 22 LTS, Go 1.23+.
+> Filled in as the stack lands. Prerequisites: Docker Desktop, Node 22 LTS (dev machine runs 24).
 
 ```text
+# Install workspace deps (root; added in Task 04/08)
+npm install
+
 # Backend + local database (added in Task 04)
 docker compose -f docker-compose.dev.yml up -d
-cd services/api && make migrate-up && make run
+cd services/api && npm run migrate:up && npm run dev
 
 # Frontend (added in Task 08)
-cd apps/web && npm install && npm run dev
+cd apps/web && npm run dev
 ```
 
 ## License

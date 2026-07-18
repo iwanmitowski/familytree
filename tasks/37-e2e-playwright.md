@@ -19,7 +19,7 @@ End-to-end proof of the whole MVP loop against a real local stack: questionnaire
 6. README/docs: how to run E2E locally (`scripts/e2e-up.sh` + `npx playwright test`), Windows notes.
 
 ## Acceptance criteria
-- The full suite passes locally from a clean checkout with only Docker + Node + Go installed; each idea.md §23 E2E step (1–8) is asserted somewhere in the suite.
+- The full suite passes locally from a clean checkout with only Docker + Node installed; each idea.md §23 E2E step (1–8) is asserted somewhere in the suite.
 
 ## Verification
 - `npx playwright test` green locally (attach summary to PROGRESS notes); nightly workflow YAML actionlint-clean.

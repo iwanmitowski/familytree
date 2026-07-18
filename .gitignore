@@ -28,15 +28,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# ---- Go (services/api) ----
-# Compiled binaries and test artifacts. NOTE: db/generated (sqlc output) IS committed.
-/services/api/api
-/services/api/api.exe
-/services/api/cmd/api/api
-/services/api/cmd/api/api.exe
-*.test
-*.out
-__debug_bin*
+# ---- API build output (services/api) ----
+# Compiled/bundled output. NOTE: src/db/generated (kysely-codegen types) IS committed.
+/services/api/dist/
+/services/api/build/
 
 # ---- Playwright / E2E ----
 /apps/web/playwright-report/

@@ -19,5 +19,5 @@ CRUD for sources and evidence links so every genealogical assertion can carry mu
 
 ## Verification
 - Integration tests for the cases above (incl. a snapshot proving the disputed event is byte-identical after evidence insert).
-- Standard Go verification + `go test -tags=integration ./...`.
+- Standard API verification + `npm run test:integration -w @familytree/api`.
 - Commit as `task-24: sources and evidence`.

@@ -9,7 +9,9 @@ The Mitovski family tree is a non-commercial application for collecting, verifyi
 Two deployment targets:
 
 - **Vercel** hosts the Next.js application, which is both the **frontend** (public questionnaire, public tree, admin console) and the **Backend-for-Frontend (BFF)**.
-- **Oracle Cloud Always Free (Ampere A1, `linux/arm64`)** hosts the Go API, PostgreSQL, and a Caddy reverse proxy, all in Docker.
+- **Oracle Cloud Always Free (Ampere A1, `linux/arm64`)** hosts the TypeScript/Node API, PostgreSQL, and a Caddy reverse proxy, all in Docker.
+
+> **Backend technology:** idea.md §2 specified Go; that choice is superseded — the API is TypeScript/Node (Hono + pg + Kysely). See [ADR 0004](adr/0004-typescript-node-backend.md). The repo is an npm-workspaces monorepo (`apps/*`, `services/*`, `packages/*`) so the HMAC signing and Zod schemas are shared code.
 
 The browser never talks to the Oracle API directly (idea.md §2).
 
@@ -20,11 +22,11 @@ Browser
   → Vercel Next.js (frontend + BFF)
   → Vercel Route Handler   (validate, verify Turnstile, fingerprint, HMAC-sign)
   → Oracle: Caddy (TLS 443)
-  → Go API (chi, pgx, sqlc; HMAC verification, authorization from signed actor)
+  → TypeScript/Node API (Hono, pg, Kysely; HMAC verification, authorization from signed actor)
   → PostgreSQL (private Docker network only)
 ```
 
-Every hop narrows trust: the browser is untrusted; the BFF authenticates admins and signs service requests; the Go API verifies signatures and enforces authorization; PostgreSQL is reachable only inside the Docker network.
+Every hop narrows trust: the browser is untrusted; the BFF authenticates admins and signs service requests; the API verifies signatures and enforces authorization; PostgreSQL is reachable only inside the Docker network.
 
 ## 3. Components
 
@@ -35,12 +37,13 @@ Every hop narrows trust: the browser is untrusted; the BFF authenticates admins 
 - Admin authentication via Auth.js (OAuth provider + email allowlist). The Oracle API never sees the OAuth session — the BFF translates a valid admin session into a signed request carrying `actorId`/`actorRole` (idea.md §5).
 - UI stack: Tailwind CSS, shadcn/ui, React Hook Form + Zod, TanStack Query, React Flow + ELK.js for the tree.
 
-### 3.2 Backend (Oracle, Go)
+### 3.2 Backend (Oracle, TypeScript/Node)
 
-- chi router, pgx/v5 connection pool, sqlc for type-safe queries, goose migrations (embedded, run via an `api migrate` subcommand).
-- Structured JSON logging (`log/slog`), graceful shutdown, `GET /health` and `GET /ready` (idea.md §2).
+- Hono HTTP framework on `@hono/node-server`; `pg` connection pool; Kysely for type-safe SQL (raw `sql` for recursive CTEs); Kysely migrations run via an `api migrate` CLI.
+- Structured JSON logging (pino), graceful shutdown, `GET /health` and `GET /ready` (idea.md §2).
 - All `/v1/internal/*` business endpoints require a valid HMAC service signature; authorization is derived from the **signed** actor role (idea.md §4, §5).
-- Optimized for `linux/arm64` (Ampere A1).
+- Runs on `linux/arm64` (Ampere A1) via a `node:22-bookworm-slim` image.
+- The HMAC verification and canonical-payload code comes from `packages/shared` — the same module the BFF uses to sign, so signing and verification cannot drift.
 
 ### 3.3 Database (Oracle, PostgreSQL 16 in Docker)
 
@@ -49,7 +52,7 @@ Every hop narrows trust: the browser is untrusted; the BFF authenticates admins 
 
 ### 3.4 Reverse proxy (Oracle, Caddy)
 
-- Listens on 80/443, manages TLS certificates automatically, reverse-proxies to the Go API, adds security headers, enforces timeouts and body-size limits, and never exposes internal service ports (idea.md §2).
+- Listens on 80/443, manages TLS certificates automatically, reverse-proxies to the API, adds security headers, enforces timeouts and body-size limits, and never exposes internal service ports (idea.md §2).
 
 ## 4. Network scheme (idea.md §3)
 
@@ -68,7 +71,7 @@ TCP 443  from 0.0.0.0/0
 TCP 22   from the administrator IP only
 ```
 
-Never opened: `5432`, `8080`, `3000`. PostgreSQL listens only on the Docker network; the Go API is reachable only from Caddy on the Docker network.
+Never opened: `5432`, `8080`, `3000`. PostgreSQL listens only on the Docker network; the API is reachable only from Caddy on the Docker network.
 
 ```text
 public network:    caddy
@@ -108,7 +111,7 @@ Living people default to `privacy_level = private`. Public projections of living
 
 ## 9. Repository structure
 
-See [`../README.md`](../README.md) and idea.md §18. Monorepo: `apps/web` (Next.js), `services/api` (Go), `contracts` (OpenAPI + HMAC), `infra/oracle` (Compose, Caddy, cloud-init), `scripts`, `docs`.
+See [`../README.md`](../README.md) and idea.md §18. npm-workspaces monorepo: `apps/web` (Next.js), `services/api` (TypeScript/Node), `packages/shared` (HMAC + Zod), `contracts` (OpenAPI + HMAC), `infra/oracle` (Compose, Caddy, cloud-init), `scripts`, `docs`.
 
 ## 10. Environment variable inventory
 

@@ -32,7 +32,7 @@ X-Actor-Role         "admin" | "public"
 X-Signature          hex(HMAC-SHA256(SERVICE_HMAC_SECRET, canonicalPayload))
 ```
 
-Canonical payload (newline-joined, in order): `HTTP_METHOD`, `REQUEST_PATH`, `TIMESTAMP`, `NONCE`, `IDEMPOTENCY_KEY`, `BODY_SHA256`, `ACTOR_ID`, `ACTOR_ROLE`. The exact escaping and empty-value rules are in [`../contracts/hmac.md`](../contracts/hmac.md), and Go↔TypeScript parity is locked by shared test vectors.
+Canonical payload (newline-joined, in order): `HTTP_METHOD`, `REQUEST_PATH`, `TIMESTAMP`, `NONCE`, `IDEMPOTENCY_KEY`, `BODY_SHA256`, `ACTOR_ID`, `ACTOR_ROLE`. The exact escaping and empty-value rules are in [`../contracts/hmac.md`](../contracts/hmac.md). Signing (BFF) and verification (API) use the **same** implementation from `packages/shared`, so they cannot drift; golden test vectors guard against regressions.
 
 The Oracle API, in order (idea.md §4):
 
@@ -105,7 +105,7 @@ The BFF derives the fingerprint and forwards only that. **The raw IP is never st
 - Only Caddy publishes `80`/`443`. PostgreSQL and the API have no host ports. Never open `5432`/`8080`/`3000`.
 - Host firewall (UFW/nftables) mirrors the OCI security list: 80, 443 open; 22 restricted to the admin IP; default deny inbound.
 - PostgreSQL runs as a dedicated non-superuser app role; the app never connects as `postgres`.
-- Containers run as non-root where possible; the API image is distroless with a read-only filesystem.
+- Containers run as non-root where possible; the API image is a slim Node runtime (`node:22-bookworm-slim`) running as the non-root `node` user with a read-only filesystem (`tmpfs` for `/tmp`).
 - Caddy adds HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, a minimal CSP for the API host, request timeouts, and a 1 MB body limit; it does not disclose internal service ports or version banners.
 
 ## 8. Secrets management

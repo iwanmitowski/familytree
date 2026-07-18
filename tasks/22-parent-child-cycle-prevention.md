@@ -6,8 +6,8 @@
 Endpoints to propose, confirm, dispute, and delete parent-child edges, with transactional ancestry-cycle prevention.
 
 ## Requirements
-1. `internal/genealogy` cycle checker: `WouldCreateCycle(ctx, tx, parentID, childID) (bool, error)` — recursive CTE ancestors-of(parentID) over edges with `verification_status IN ('proposed','confirmed')` (decision, per safety: pending edges also block cycles; `disputed`/`rejected` excluded — document in code + data-model doc); returns true if childID appears (or parentID == childID).
-2. `POST /v1/internal/relationships/parent-child` `{parentId, childId, relationshipType, familyUnionId?, verificationStatus?='proposed', confidence?}` — **one transaction** (idea.md §12): take a deterministic advisory lock (e.g. `pg_advisory_xact_lock` on hash of sorted pair) to serialize competing inserts; guards: distinct ids, both people exist and are not merged/deleted, no duplicate `(parent, child, type)`; run cycle check; violation → 422 `cycle_detected`; insert; audit entry.
+1. `src/genealogy` cycle checker: `wouldCreateCycle(trx, parentId, childId): Promise<boolean>` — recursive CTE (raw `sql` via Kysely) ancestors-of(parentId) over edges with `verification_status IN ('proposed','confirmed')` (decision, per safety: pending edges also block cycles; `disputed`/`rejected` excluded — document in code + data-model doc); returns true if childId appears (or parentId === childId).
+2. `POST /v1/internal/relationships/parent-child` `{parentId, childId, relationshipType, familyUnionId?, verificationStatus?='proposed', confidence?}` — **one transaction** (idea.md §12): take a deterministic advisory lock (`pg_advisory_xact_lock` on a hash of the sorted pair, via raw `sql`) to serialize competing inserts; guards: distinct ids, both people exist and are not merged/deleted, no duplicate `(parent, child, type)`; run cycle check; violation → 422 `cycle_detected`; insert; audit entry.
 3. `PATCH /v1/internal/relationships/{id}`: change `verificationStatus` (`proposed→confirmed|disputed|rejected`, `confirmed→disputed`; anything else 409), `relationshipType`, `confidence`, `familyUnionId`; **confirming re-runs the cycle check** inside the transaction; audit entry.
 4. `DELETE /v1/internal/relationships/{id}`: hard delete with a full row snapshot into the audit entry metadata.
 5. `GET /v1/internal/relationships/between?personA=&personB=`: direct edges between the two people (both directions).
@@ -18,5 +18,5 @@ Integration tests must cover: **self-parent** rejected; **direct cycle** (A→B 
 
 ## Verification
 - The §12 matrix above + a concurrency test (two transactions inserting A→B and B→A simultaneously; exactly one wins).
-- Standard Go verification + `go test -tags=integration ./...`.
+- Standard API verification + `npm run test:integration -w @familytree/api`.
 - Commit as `task-22: parent-child relationships with cycle prevention`.

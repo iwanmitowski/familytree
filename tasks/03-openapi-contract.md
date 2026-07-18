@@ -3,7 +3,7 @@
 **Depends on:** 02 · **Size:** M · **Spec:** idea.md §4 (headers), §11, §13, §16 (endpoints)
 
 ## Goal
-Create `contracts/openapi.yaml` — the contract-first specification of the Oracle Go API. Later tasks keep it in sync as they implement endpoints.
+Create `contracts/openapi.yaml` — the contract-first specification of the Oracle API (TypeScript/Node). Later tasks keep it in sync as they implement endpoints.
 
 ## Requirements
 1. OpenAPI **3.1**, info block naming the service, placeholder server `https://api.rod.mitovski.example`.

@@ -6,8 +6,8 @@
 The genealogy computation core: recursive CTEs for ancestry, a `RelationshipResolver` that names the kinship between any two people in Bulgarian, and the relationship-path endpoint.
 
 ## Requirements
-1. sqlc recursive CTE queries over **confirmed** parent-child edges, excluding merged/deleted people (idea.md §11): `Ancestors(personId, maxDepth)` (with depth), `Descendants(personId, maxDepth)`, `CommonAncestors(a, b, maxDepth)` (each ancestor with both depths, ordered by combined depth), plus a bounded subgraph fetch (`edges within N generations of X`) reused by Task 29.
-2. `internal/genealogy` `RelationshipResolver` with `Resolve(ctx, personAId, personBId, maxDepth)` → exactly the idea.md §11 shape: `{connected, relationshipLabelBg, commonAncestors, path, confidence}`:
+1. Kysely recursive CTE queries (raw `sql`) over **confirmed** parent-child edges, excluding merged/deleted people (idea.md §11): `ancestors(personId, maxDepth)` (with depth), `descendants(personId, maxDepth)`, `commonAncestors(a, b, maxDepth)` (each ancestor with both depths, ordered by combined depth), plus a bounded subgraph fetch (`edges within N generations of X`) reused by Task 29.
+2. `src/genealogy` `RelationshipResolver` with `resolve(personAId, personBId, maxDepth)` → exactly the idea.md §11 shape: `{connected, relationshipLabelBg, commonAncestors, path, confidence}`:
    - Build a bounded in-memory graph (CTE results + union partner edges) and BFS the shortest path A→B; edge kinds: parent/child/partner;
    - Classification from common-ancestor depths `(d1, d2)`: direct line (родител/дете, баба/дядо ↔ внук/внучка, прабаба/прадядо…), siblings `(1,1)` — брат/сестра, uncle/aunt `(1,2)` — чичо/леля ↔ племенник/племенница, cousins: degree = `min(d1,d2) − 1`, removal = `|d1 − d2|` → „първи братовчеди", „втори братовчеди", removals as „… веднъж отместени" (document label choices);
    - Partner-hop paths append „съпруг/съпруга на …" / „партньор на …" — kept distinct from blood kinship (idea.md §11: biological separate from through-marriage); a pure-partner connection is `connected: true` with a through-marriage label;
@@ -21,5 +21,5 @@ The genealogy computation core: recursive CTEs for ancestry, a `RelationshipReso
 
 ## Verification
 - Unit tests for the classification math + Bulgarian label table (snapshot); integration tests for the CTEs (depth limits honored, merged people excluded); resolver end-to-end on the fixture.
-- Standard Go verification + `go test -tags=integration ./...`.
+- Standard API verification + `npm run test:integration -w @familytree/api`.
 - Commit as `task-28: genealogy queries and relationship resolver`.

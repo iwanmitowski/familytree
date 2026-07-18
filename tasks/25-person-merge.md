@@ -18,7 +18,7 @@ A safe, fully transactional merge of a duplicate person into a target person, wi
    - Post-check inside the same transaction: run the cycle checker (Task 22) over the target's edges; cycle → rollback 422 `merge_creates_cycle`;
    - Mark source: `merged_into_person_id = target`, `deleted_at = now()`;
    - Write `person_merge_history` row + audit entry; return the merged target aggregate.
-2. Merged-person resolution: shared helper `ResolvePersonID(ctx, id)` following at most one `merged_into_person_id` hop (merging into an already-merged target is forbidden, so one hop suffices — enforce that with a precondition); people GET already surfaces the redirect envelope (Task 21).
+2. Merged-person resolution: shared helper `resolvePersonId(db, id)` following at most one `merged_into_person_id` hop (merging into an already-merged target is forbidden, so one hop suffices — enforce that with a precondition); people GET already surfaces the redirect envelope (Task 21).
 3. Reject double merge (source already merged) and merging a person into itself via chain (`target.merged_into == source`).
 4. Update `contracts/openapi.yaml`.
 
@@ -27,5 +27,5 @@ A safe, fully transactional merge of a duplicate person into a target person, wi
 
 ## Verification
 - Integration tests: full merge fixture assertion; dedupe cases; self-edge abort; cycle abort; double-merge rejection; atomicity (inject failure late in tx → nothing persisted).
-- Standard Go verification + `go test -tags=integration ./...`.
+- Standard API verification + `npm run test:integration -w @familytree/api`.
 - Commit as `task-25: transactional person merge`.

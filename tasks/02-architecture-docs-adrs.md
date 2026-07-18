@@ -7,7 +7,7 @@ Produce the authoritative design documents required by idea.md §26 **before** p
 
 ## Requirements
 1. `docs/architecture.md` (English):
-   - Component overview: Vercel Next.js (frontend + BFF), Go API on Oracle Ampere A1, PostgreSQL in Docker, Caddy reverse proxy.
+   - Component overview: Vercel Next.js (frontend + BFF), TypeScript/Node API on Oracle Ampere A1, PostgreSQL in Docker, Caddy reverse proxy.
    - Request flow diagram (idea.md §2) and network scheme incl. DNS + ingress rules (§3).
    - Authentication model: public users (no accounts), admin via Auth.js + allowlist, BFF→API HMAC (§4, §5).
    - Anti-abuse summary (§6) and the three data layers (§7).

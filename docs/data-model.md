@@ -1,6 +1,6 @@
 # Data model
 
-Authoritative spec: [`idea.md`](../idea.md) §7, §8, §11. This document is the reference for the schema created by the goose migrations (Tasks 05–06) and kept in sync as the schema evolves.
+Authoritative spec: [`idea.md`](../idea.md) §7, §8, §11. This document is the reference for the schema created by the Kysely migrations (Tasks 05–06) and kept in sync as the schema evolves.
 
 ## Conventions
 
