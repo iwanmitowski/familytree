@@ -58,9 +58,13 @@ npm run dev -w @familytree/api        # serves http://127.0.0.1:8080 (/health, /
 npm run lint && npm run typecheck && npm test
 npm run test:integration -w @familytree/api   # needs the dev DB from compose
 
-# Frontend (added in Task 08)
-cd apps/web && npm run dev
+# Frontend (Next.js on http://localhost:3000)
+npm run dev -w @familytree/web
 ```
+
+The frontend uses Next.js (App Router) + Tailwind CSS v4 + shadcn/ui, Bulgarian
+locale (`lang="bg"`), TanStack Query, and shares HMAC/validation code with the
+API via `@familytree/shared`.
 
 ## License
 
