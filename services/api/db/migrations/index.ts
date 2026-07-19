@@ -17,7 +17,9 @@ import type { Migration } from 'kysely/migration';
  *        };
  */
 import * as m0001 from './0001_staging_tables';
+import * as m0002 from './0002_canonical_tables';
 
 export const migrations: Record<string, Migration> = {
   '0001_staging_tables': m0001,
+  '0002_canonical_tables': m0002,
 };

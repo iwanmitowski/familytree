@@ -188,6 +188,7 @@ erDiagram
         uuid id PK
         uuid union_id FK
         uuid person_id FK
+        timestamptz created_at
     }
     sources {
         uuid id PK
@@ -215,8 +216,9 @@ erDiagram
         smallint score
         jsonb reasons
         text status "pending|accepted|rejected|deferred"
-        uuid reviewed_by
+        text reviewed_by "admin email"
         timestamptz reviewed_at
+        timestamptz created_at
     }
     person_merge_history {
         uuid id PK

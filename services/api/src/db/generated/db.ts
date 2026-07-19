@@ -45,6 +45,24 @@ export interface Consents {
   withdrawn_at: Timestamp | null;
 }
 
+export interface Evidence {
+  assertion: string;
+  confidence: number | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  notes: string | null;
+  source_id: string;
+  stance: string;
+  subject_id: string;
+  subject_type: string;
+}
+
+export interface FamilyUnions {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  union_type: Generated<string>;
+}
+
 export interface IdempotencyKeys {
   created_at: Generated<Timestamp>;
   expires_at: Timestamp;
@@ -67,11 +85,107 @@ export interface Invites {
   used_submissions: Generated<number>;
 }
 
+export interface MatchCandidates {
+  canonical_person_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  reasons: Json;
+  reviewed_at: Timestamp | null;
+  reviewed_by: string | null;
+  score: number;
+  status: Generated<string>;
+  submission_person_id: string;
+}
+
+export interface ParentChildRelationships {
+  child_id: string;
+  confidence: number | null;
+  created_at: Generated<Timestamp>;
+  family_union_id: string | null;
+  id: Generated<string>;
+  parent_id: string;
+  relationship_type: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  verification_status: Generated<string>;
+}
+
+export interface People {
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  living_status: Generated<string>;
+  merged_into_person_id: string | null;
+  notes: string | null;
+  privacy_level: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface PersonEvents {
+  created_at: Generated<Timestamp>;
+  date_from: Timestamp | null;
+  date_precision: Generated<string>;
+  date_to: Timestamp | null;
+  event_type: string;
+  id: Generated<string>;
+  person_id: string;
+  place_id: string | null;
+  value: string | null;
+  year_from: number | null;
+  year_to: number | null;
+}
+
+export interface PersonMergeHistory {
+  actor_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  reason: string;
+  snapshot: Json;
+  source_person_id: string;
+  target_person_id: string;
+}
+
+export interface PersonNames {
+  birth_surname: string | null;
+  created_at: Generated<Timestamp>;
+  first_name: string | null;
+  id: Generated<string>;
+  is_preferred: Generated<boolean>;
+  middle_name: string | null;
+  name_type: Generated<string>;
+  nickname: string | null;
+  normalized_name: string | null;
+  person_id: string;
+  source_id: string | null;
+  surname: string | null;
+  transliterated_name: string | null;
+}
+
+export interface Places {
+  country_code: string | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  latitude: number | null;
+  longitude: number | null;
+  name: string;
+  normalized_name: string;
+  parent_place_id: string | null;
+  place_type: Generated<string>;
+}
+
 export interface ServiceRequestNonces {
   created_at: Generated<Timestamp>;
   expires_at: Timestamp;
   nonce: string;
   service_id: string;
+}
+
+export interface Sources {
+  created_at: Generated<Timestamp>;
+  description: string | null;
+  id: Generated<string>;
+  source_type: string;
+  submission_id: string | null;
+  title: string;
 }
 
 export interface SubmissionPeople {
@@ -120,13 +234,31 @@ export interface Submissions {
   updated_at: Generated<Timestamp>;
 }
 
+export interface UnionPartners {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  person_id: string;
+  union_id: string;
+}
+
 export interface DB {
   audit_log: AuditLog;
   consents: Consents;
+  evidence: Evidence;
+  family_unions: FamilyUnions;
   idempotency_keys: IdempotencyKeys;
   invites: Invites;
+  match_candidates: MatchCandidates;
+  parent_child_relationships: ParentChildRelationships;
+  people: People;
+  person_events: PersonEvents;
+  person_merge_history: PersonMergeHistory;
+  person_names: PersonNames;
+  places: Places;
   service_request_nonces: ServiceRequestNonces;
+  sources: Sources;
   submission_people: SubmissionPeople;
   submission_relationships: SubmissionRelationships;
   submissions: Submissions;
+  union_partners: UnionPartners;
 }
