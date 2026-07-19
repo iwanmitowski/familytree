@@ -3,4 +3,130 @@
  * Please do not edit it manually.
  */
 
-export interface DB {}
+import type { ColumnType } from "kysely";
+
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
+
+export type Json = JsonValue;
+
+export type JsonArray = JsonValue[];
+
+export type JsonObject = {
+  [x: string]: JsonValue | undefined;
+};
+
+export type JsonPrimitive = boolean | number | string | null;
+
+export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
+
+export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+
+export interface AuditLog {
+  action: string;
+  actor_id: string | null;
+  actor_type: string;
+  created_at: Generated<Timestamp>;
+  entity_id: string | null;
+  entity_type: string | null;
+  id: Generated<string>;
+  metadata: Json | null;
+  request_id: string | null;
+}
+
+export interface Consents {
+  accepted: boolean;
+  accepted_at: Timestamp | null;
+  consent_type: string;
+  consent_version: string;
+  id: Generated<string>;
+  submission_id: string;
+  withdrawn_at: Timestamp | null;
+}
+
+export interface IdempotencyKeys {
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  key: string;
+  request_hash: string;
+  response_body: Json | null;
+  response_status: number | null;
+  service_id: string;
+}
+
+export interface Invites {
+  campaign: string | null;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp | null;
+  id: Generated<string>;
+  max_submissions: Generated<number>;
+  recipient_label: string;
+  revoked_at: Timestamp | null;
+  token_hash: string;
+  used_submissions: Generated<number>;
+}
+
+export interface ServiceRequestNonces {
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  nonce: string;
+  service_id: string;
+}
+
+export interface SubmissionPeople {
+  birth_surname: string | null;
+  birth_year_from: number | null;
+  birth_year_to: number | null;
+  birthplace_text: string | null;
+  created_at: Generated<Timestamp>;
+  death_year_from: number | null;
+  death_year_to: number | null;
+  first_name: string | null;
+  id: Generated<string>;
+  living_status: Generated<string>;
+  local_key: string;
+  matched_person_id: string | null;
+  middle_name: string | null;
+  nickname: string | null;
+  normalized_name: string | null;
+  residence_text: string | null;
+  resolution_status: Generated<string>;
+  submission_id: string;
+  surname: string | null;
+}
+
+export interface SubmissionRelationships {
+  from_local_key: string;
+  id: Generated<string>;
+  notes: string | null;
+  relationship_type: string;
+  submission_id: string;
+  to_local_key: string;
+}
+
+export interface Submissions {
+  client_fingerprint: string | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  invite_id: string | null;
+  original_payload: Json;
+  processed_at: Timestamp | null;
+  processing_started_at: Timestamp | null;
+  rejected_at: Timestamp | null;
+  spam_reason: string | null;
+  status: Generated<string>;
+  submitted_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface DB {
+  audit_log: AuditLog;
+  consents: Consents;
+  idempotency_keys: IdempotencyKeys;
+  invites: Invites;
+  service_request_nonces: ServiceRequestNonces;
+  submission_people: SubmissionPeople;
+  submission_relationships: SubmissionRelationships;
+  submissions: Submissions;
+}

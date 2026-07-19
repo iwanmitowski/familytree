@@ -10,9 +10,14 @@ import type { Migration } from 'kysely/migration';
  *   2. Import it below and add it to the record, keyed by its file name
  *      (sortable, zero-padded):
  *
- *        import * as m0001 from './0001_staging_tables';
+ *        import * as m0002 from './0002_canonical_tables';
  *        export const migrations: Record<string, Migration> = {
- *          '0001_staging_tables': m0001,
+ *          ...,
+ *          '0002_canonical_tables': m0002,
  *        };
  */
-export const migrations: Record<string, Migration> = {};
+import * as m0001 from './0001_staging_tables';
+
+export const migrations: Record<string, Migration> = {
+  '0001_staging_tables': m0001,
+};
