@@ -1,0 +1,18 @@
+# Keep the API build context small and reproducible.
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/.turbo
+**/*.tsbuildinfo
+.git
+apps/web/public
+**/*.test.ts
+**/*.test.tsx
+playwright-report
+test-results
+*.age
+*.dump
+.env
+.env.*
+!.env.example
