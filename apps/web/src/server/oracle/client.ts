@@ -55,7 +55,6 @@ export async function oracleFetch<T = unknown>(
   const pathWithQuery = url.pathname + url.search;
 
   const attempts = isIdempotentMethod(method) ? RETRYABLE_GET_ATTEMPTS : 1;
-  let lastError: unknown;
 
   for (let attempt = 0; attempt < attempts; attempt++) {
     // Each attempt re-signs: fresh nonce + timestamp (a reused nonce is rejected).
@@ -102,7 +101,6 @@ export async function oracleFetch<T = unknown>(
 
       return { data: parsed as T, status: res.status, requestId };
     } catch (err) {
-      lastError = err;
       // Domain errors (4xx) are final; only transport failures on GET retry.
       if (err instanceof OracleError) throw err;
       if (attempt === attempts - 1) break;

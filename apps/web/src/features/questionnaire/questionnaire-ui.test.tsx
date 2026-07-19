@@ -1,0 +1,80 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QuestionnaireProvider } from './store';
+import { QuestionnaireForm } from './QuestionnaireForm';
+import { clearDraft, saveDraft } from './draft';
+
+function renderForm(initialStep = 0) {
+  return render(
+    <QuestionnaireProvider initialStep={initialStep}>
+      <QuestionnaireForm />
+    </QuestionnaireProvider>,
+  );
+}
+
+beforeEach(() => clearDraft());
+afterEach(() => cleanup());
+
+describe('questionnaire multi-step form', () => {
+  it('renders step 1 in Bulgarian with a hidden honeypot', () => {
+    renderForm();
+    expect(screen.getByRole('heading', { name: 'За участника' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Вашите имена')).toBeInTheDocument();
+
+    const honeypot = screen.getByLabelText('Уебсайт (не попълвайте)');
+    expect(honeypot).toHaveAttribute('tabindex', '-1');
+    expect(honeypot.closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('blocks advancing when required fields are empty', async () => {
+    renderForm();
+    fireEvent.submit(screen.getByLabelText('Вашите имена').closest('form')!);
+    expect(await screen.findByText('Моля, въведете имената си')).toBeInTheDocument();
+    // Still on step 1.
+    expect(screen.getByRole('heading', { name: 'За участника' })).toBeInTheDocument();
+  });
+
+  it('advances to step 2 once step 1 is valid', async () => {
+    renderForm();
+    fireEvent.change(screen.getByLabelText('Вашите имена'), { target: { value: 'Иван Тестов' } });
+    fireEvent.change(screen.getByLabelText('Каква е връзката Ви с фамилията Митовски?'), {
+      target: { value: 'внук' },
+    });
+    fireEvent.click(
+      screen.getByLabelText(/Съгласен\/съгласна съм изпратената информация/),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Напред' }));
+
+    expect(await screen.findByRole('heading', { name: 'Информация за Вас' })).toBeInTheDocument();
+  });
+
+  it('lets step 3 be skipped without filling anything', async () => {
+    renderForm(2); // start on "Родители"
+    expect(screen.getByRole('heading', { name: 'Родители' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Пропусни тази стъпка' }));
+    expect(await screen.findByRole('heading', { name: 'Баби и дядовци' })).toBeInTheDocument();
+  });
+
+  it('offers to restore an existing draft and applies it', async () => {
+    saveDraft({ participantName: 'Мария Драфтова', connectionToFamily: 'дъщеря' }, Date.now());
+    renderForm();
+    expect(
+      await screen.findByText(/Открихме незавършена чернова/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Продължи от черновата' }));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Вашите имена')).toHaveValue('Мария Драфтова'),
+    );
+  });
+
+  it('discards a draft when starting over', async () => {
+    saveDraft({ participantName: 'Стар запис' }, Date.now());
+    renderForm();
+    fireEvent.click(await screen.findByRole('button', { name: 'Започни отначало' }));
+    await waitFor(() =>
+      expect(screen.queryByText(/Открихме незавършена чернова/)).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText('Вашите имена')).toHaveValue('');
+  });
+});
