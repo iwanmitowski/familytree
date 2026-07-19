@@ -1,0 +1,55 @@
+#cloud-config
+# Provisions the Oracle Ampere A1 VM (idea.md §3): a non-root deploy user,
+# Docker + compose plugin, a host firewall matching the OCI security list, and
+# the /opt/familytree layout. Replace the two placeholders before use:
+#   - <ADMIN_SSH_PUBLIC_KEY>  the deploy user's public key
+#   - <ADMIN_IP>              the administrator's IP (SSH is restricted to it)
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - ufw
+  - unattended-upgrades
+
+users:
+  - name: deploy
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    ssh_authorized_keys:
+      - <ADMIN_SSH_PUBLIC_KEY>
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/10-hardening.conf
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      ChallengeResponseAuthentication no
+
+runcmd:
+  # Docker Engine + compose plugin (official convenience script).
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+
+  # Host firewall (UFW) mirroring the OCI security list (idea.md §3).
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow from <ADMIN_IP> to any port 22 proto tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+
+  # Never expose the database or app ports; only 80/443 (+22 restricted).
+  # 5432 / 8080 / 3000 are intentionally NOT opened.
+
+  # Application layout.
+  - mkdir -p /opt/familytree/initdb /opt/familytree/backups
+  - chown -R deploy:deploy /opt/familytree
+
+  - systemctl restart ssh
+
+  # Automatic security updates.
+  - dpkg-reconfigure -f noninteractive unattended-upgrades

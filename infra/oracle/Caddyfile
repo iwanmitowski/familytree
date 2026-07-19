@@ -1,0 +1,31 @@
+# Caddy reverse proxy for the Oracle API (idea.md §2).
+# TLS is obtained and renewed automatically for {$API_DOMAIN}.
+{
+	# Operational hardening: no admin API surface exposed.
+	admin off
+}
+
+{$API_DOMAIN} {
+	# Cap request bodies before proxying (idea.md §2).
+	request_body {
+		max_size 1MB
+	}
+
+	# Security headers; drop the Server version banner.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		-Server
+	}
+
+	# Reverse proxy to the API on the internal Docker network.
+	reverse_proxy api:8080
+
+	log {
+		output stdout
+		format json
+	}
+}

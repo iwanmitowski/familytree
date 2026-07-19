@@ -1,0 +1,110 @@
+# Production stack for the Oracle Ampere A1 VM (idea.md §19).
+# Only Caddy publishes host ports (80/443). Postgres and the API are reachable
+# only on the internal Docker network — never from the internet.
+#
+# Deploy:
+#   docker compose --profile ops run --rm migrate   # apply migrations first
+#   docker compose up -d                             # caddy + api + postgres
+#
+# Secrets come from ./.env (not committed). See env.example.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    # No host port — internal network only.
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPER_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPER_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      APP_DB_USER: ${APP_DB_USER}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPER_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # One-shot migration runner. Runs to completion before a new API rollout.
+  #   docker compose --profile ops run --rm migrate
+  migrate:
+    image: ${API_IMAGE:-ghcr.io/iwanmitowski/familytree-api:latest}
+    profiles: ["ops"]
+    restart: "no"
+    logging: *default-logging
+    command: ["node", "dist/db/migrate.js", "up"]
+    environment:
+      DATABASE_URL: postgres://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SERVICE_ID: ${SERVICE_ID}
+      SERVICE_HMAC_SECRET: ${SERVICE_HMAC_SECRET}
+      ENV: prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/iwanmitowski/familytree-api:latest}
+    restart: unless-stopped
+    logging: *default-logging
+    # No host port — only Caddy reaches it on the internal network.
+    environment:
+      PORT: "8080"
+      ENV: prod
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SERVICE_ID: ${SERVICE_ID}
+      SERVICE_HMAC_SECRET: ${SERVICE_HMAC_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    networks:
+      - public
+      - internal
+
+networks:
+  public:
+  internal:
+    internal: true
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
