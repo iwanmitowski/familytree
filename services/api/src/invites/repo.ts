@@ -37,6 +37,23 @@ export function incrementInviteUsage(db: Db, id: string): Promise<InviteRow | un
     .executeTakeFirst();
 }
 
+/**
+ * Atomically consumes one usage slot by token hash. The guard lives in the
+ * WHERE clause so concurrent submits can never exceed max_submissions or use a
+ * revoked/expired invite. Returns undefined when no eligible row matched.
+ */
+export function consumeInviteByHash(db: Db, tokenHash: string): Promise<InviteRow | undefined> {
+  return db
+    .updateTable('invites')
+    .set((eb) => ({ used_submissions: eb('used_submissions', '+', 1) }))
+    .where('token_hash', '=', tokenHash)
+    .where('revoked_at', 'is', null)
+    .where((eb) => eb.or([eb('expires_at', 'is', null), eb('expires_at', '>', sql<Date>`now()`)]))
+    .whereRef('used_submissions', '<', 'max_submissions')
+    .returningAll()
+    .executeTakeFirst();
+}
+
 /** Idempotent: an already revoked invite keeps its original revoked_at. */
 export function revokeInvite(db: Db, id: string): Promise<InviteRow | undefined> {
   return db

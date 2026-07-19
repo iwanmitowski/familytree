@@ -14,6 +14,7 @@ const db = createDb(pool);
 
 const app = createApp({
   logger,
+  db,
   ping: () => ping(pool).catch(() => false),
   hmac: {
     serviceId: config.SERVICE_ID,
