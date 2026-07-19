@@ -1,0 +1,20 @@
+# gitleaks configuration. Extends the default ruleset and allowlists known
+# non-secrets: hardcoded test constants and *.example placeholder values.
+# Real secrets live in untracked .env files / Vercel / GitHub Actions secrets.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures and example placeholders are not real secrets"
+paths = [
+  '''.*\.test\.ts$''',
+  '''services/api/tests/.*''',
+  '''packages/shared/scripts/generate-hmac-vectors\.ts$''',
+  '''contracts/hmac-test-vectors\.json$''',
+  '''.*\.env\.example$''',
+  '''.*env\.example$''',
+]
+regexes = [
+  # Obvious dev/test/ci placeholder secrets used across fixtures and examples.
+  '''(dev-only|ci|test|vector|middleware-test|integration-test|unit-test|fingerprint|change-me)[-a-z0-9]*''',
+]

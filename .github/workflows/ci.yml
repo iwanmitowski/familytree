@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web (lint · typecheck · test · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Shared package
+        run: |
+          npm run typecheck --workspace @familytree/shared
+          npm test --workspace @familytree/shared
+      - name: Web
+        run: |
+          npm run lint --workspace @familytree/web
+          npm run typecheck --workspace @familytree/web
+          npm test --workspace @familytree/web
+          npm run build --workspace @familytree/web
+
+  api:
+    name: API (lint · typecheck · unit · integration)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: familytree
+          POSTGRES_PASSWORD: familytree
+          POSTGRES_DB: familytree_dev
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U familytree -d familytree_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://familytree:familytree@localhost:5433/familytree_dev
+      SERVICE_ID: ci
+      SERVICE_HMAC_SECRET: ci-hmac-secret-0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Create the integration-test database
+        run: psql "$DATABASE_URL" -c 'CREATE DATABASE familytree_test'
+      - name: Static checks
+        run: |
+          npm run lint --workspace @familytree/api
+          npm run typecheck --workspace @familytree/api
+      - name: Unit tests
+        run: npm test --workspace @familytree/api
+      - name: Migrate + generated-code drift check
+        run: |
+          npm run migrate:up --workspace @familytree/api
+          npm run codegen --workspace @familytree/api
+          git diff --exit-code services/api/src/db/generated \
+            || (echo "::error::Committed kysely-codegen output is stale. Run 'npm run codegen -w @familytree/api'." && exit 1)
+      - name: Integration tests
+        run: npm run test:integration --workspace @familytree/api
+      - name: Build
+        run: npm run build --workspace @familytree/api
+
+  docker-arm64:
+    name: API image builds for ARM64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/api/Dockerfile
+          platforms: linux/arm64
+          push: false
+
+  contracts:
+    name: OpenAPI lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npx --yes @redocly/cli@latest lint contracts/openapi.yaml
+
+  gitleaks:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
