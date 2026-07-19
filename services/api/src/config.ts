@@ -5,6 +5,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   ENV: z.enum(['dev', 'prod']).default('dev'),
+  SERVICE_ID: z.string().min(1),
+  SERVICE_HMAC_SECRET: z.string().min(16, 'must be at least 16 characters'),
 });
 
 export type Config = z.infer<typeof envSchema>;
