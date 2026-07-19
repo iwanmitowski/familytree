@@ -3,16 +3,26 @@ import { serve } from '@hono/node-server';
 import { loadConfig } from './config';
 import { createLogger } from './logger';
 import { createApp } from './transport/app';
-import { createPool, ping } from './persistence/db';
+import { createDb, createPool, ping } from './persistence/db';
+import { dbAuthStore } from './auth/hmac';
+import { startAuthJanitor } from './auth/janitor';
 
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL, config.ENV);
 const pool = createPool(config.DATABASE_URL);
+const db = createDb(pool);
 
 const app = createApp({
   logger,
   ping: () => ping(pool).catch(() => false),
+  hmac: {
+    serviceId: config.SERVICE_ID,
+    secret: config.SERVICE_HMAC_SECRET,
+    store: dbAuthStore(db),
+  },
 });
+
+const janitor = startAuthJanitor(db, logger);
 
 const server = serve({ fetch: app.fetch, port: config.PORT, hostname: '0.0.0.0' }, (info) => {
   logger.info({ port: info.port }, 'api listening');
@@ -24,6 +34,7 @@ function shutdown(signal: string): void {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info({ signal }, 'shutting down');
+  janitor.stop();
 
   const deadline = setTimeout(() => {
     logger.error('shutdown deadline exceeded, forcing exit');
