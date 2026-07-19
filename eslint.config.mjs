@@ -10,6 +10,8 @@ export default tseslint.config(
       '**/coverage/**',
       '**/playwright-report/**',
       'services/api/src/db/generated/**',
+      // apps/web has its own Next.js flat config + lint script.
+      'apps/web/**',
     ],
   },
   js.configs.recommended,
