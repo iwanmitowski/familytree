@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
+import type { Kysely } from 'kysely';
 import type { Logger } from '../logger';
+import type { DB } from '../db/generated/db';
 import { writeError, type AppEnv } from './http';
 import { hmacAuth, type HmacAuthConfig } from '../auth/hmac';
+import { registerInviteRoutes } from '../invites/routes';
 
 export type { AppEnv } from './http';
 export { writeError } from './http';
@@ -16,9 +19,17 @@ export interface AppDeps {
    * transport tests can run without it; production always provides it.
    */
   hmac?: HmacAuthConfig;
+  /** Database handle for the business routes. Optional for pure-transport tests. */
+  db?: Kysely<DB>;
 }
 
-export function createApp({ logger, ping, hmac }: AppDeps) {
+/** Shared dependencies passed to every route module. */
+export interface RouteDeps {
+  db: Kysely<DB>;
+  logger: Logger;
+}
+
+export function createApp({ logger, ping, hmac, db }: AppDeps) {
   const app = new Hono<AppEnv>();
 
   app.use('*', async (c, next) => {
@@ -53,6 +64,12 @@ export function createApp({ logger, ping, hmac }: AppDeps) {
   // Every business endpoint requires a valid HMAC signature (idea.md §4).
   if (hmac) {
     app.use('/v1/internal/*', hmacAuth(hmac, logger));
+  }
+
+  // Business routes under /v1/internal (auth already applied above).
+  if (db) {
+    const deps: RouteDeps = { db, logger };
+    registerInviteRoutes(app, deps);
   }
 
   // Reveals nothing about versions, hosts, or infrastructure (idea.md §4).
