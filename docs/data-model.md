@@ -259,6 +259,8 @@ erDiagram
 
 ### Layer 1 — immutable submissions
 
+Staging children (`submission_people`, `submission_relationships`, `consents`) reference `submissions` with `ON DELETE CASCADE` — deleting a submission (rare, admin cleanup) removes its staging rows atomically. Canonical tables never cascade from staging.
+
 **`invites`** — invitation tokens. Only `sha256hex(token)` is stored in `token_hash` (UNIQUE); the plain token exists only in the creation response. Constraints: `CHECK (max_submissions > 0)`, `CHECK (used_submissions <= max_submissions)`. Consumed under a row lock during submission (Task 12).
 
 **`submissions`** — one questionnaire submission. `original_payload JSONB NOT NULL` is **immutable** after the row leaves `draft`. `status` ∈ `{draft, pending, in_review, processed, rejected, spam}` (`CHECK`). `client_fingerprint` is an HMAC of the IP, never the raw IP. State transitions are validated server-side (Task 18).

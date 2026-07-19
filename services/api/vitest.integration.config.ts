@@ -9,5 +9,7 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['dotenv/config'],
     testTimeout: 15_000,
+    // Integration files share the familytree_test database — never in parallel.
+    fileParallelism: false,
   },
 });
