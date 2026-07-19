@@ -1,0 +1,25 @@
+# Local development database only. Production compose lives in infra/oracle/ (Task 10).
+# Dev-only credentials — never reused anywhere else.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: familytree-postgres-dev
+    ports:
+      # Loopback only — never expose the dev DB beyond this machine.
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_USER: familytree
+      POSTGRES_PASSWORD: familytree
+      POSTGRES_DB: familytree_dev
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - familytree_pgdata_dev:/var/lib/postgresql/data
+      - ./infra/dev/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U familytree -d familytree_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  familytree_pgdata_dev:

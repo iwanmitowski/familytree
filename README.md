@@ -42,15 +42,21 @@ docs/            Architecture, data model, security, deployment (docs/adr/ for d
 
 ## Quickstart
 
-> Filled in as the stack lands. Prerequisites: Docker Desktop, Node 22 LTS (dev machine runs 24).
+> Prerequisites: Docker Desktop, Node 22+ LTS.
 
 ```text
-# Install workspace deps (root; added in Task 04/08)
+# Install workspace deps (once, at the repo root)
 npm install
 
-# Backend + local database (added in Task 04)
+# Backend + local database
 docker compose -f docker-compose.dev.yml up -d
-cd services/api && npm run migrate:up && npm run dev
+cp services/api/.env.example services/api/.env
+npm run migrate:up -w @familytree/api
+npm run dev -w @familytree/api        # serves http://127.0.0.1:8080 (/health, /ready)
+
+# Checks (run from the root)
+npm run lint && npm run typecheck && npm test
+npm run test:integration -w @familytree/api   # needs the dev DB from compose
 
 # Frontend (added in Task 08)
 cd apps/web && npm run dev
