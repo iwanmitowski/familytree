@@ -20,10 +20,17 @@ export interface SubmissionPerson {
   id: string;
   localKey: string;
   first_name?: string | null;
+  middle_name?: string | null;
   surname?: string | null;
+  nickname?: string | null;
   birth_year_from?: number | null;
   birth_year_to?: number | null;
+  death_year_from?: number | null;
+  death_year_to?: number | null;
+  birthplace_text?: string | null;
   living_status?: string | null;
+  resolution_status?: string | null;
+  matched_person_id?: string | null;
   [key: string]: unknown;
 }
 
@@ -70,3 +77,44 @@ export const STATUS_LABELS: Record<SubmissionStatus, string> = {
   rejected: 'Отхвърлена',
   spam: 'Спам',
 };
+
+export const RESOLUTION_LABELS: Record<string, string> = {
+  pending: 'Нерешен',
+  created: 'Създаден',
+  linked: 'Свързан',
+  deferred: 'Отложен',
+  ignored: 'Игнориран',
+};
+
+// --- Review workspace (task-27) ---
+
+export interface MatchReason {
+  field: string;
+  score: number;
+  description: string;
+}
+
+export interface RankedCandidate {
+  id: string;
+  canonicalPersonId: string;
+  score: number;
+  reasons: MatchReason[];
+  status: string;
+  person: { id: string; label: string; birthYear: number | null };
+}
+
+export interface SuggestionEndpoint {
+  localKey: string;
+  personId: string | null;
+  label: string;
+}
+
+export interface SuggestedRelationship {
+  kind: 'parent_child' | 'union' | 'sibling_hint';
+  viaLocalKeys: [string, string];
+  a: SuggestionEndpoint;
+  b: SuggestionEndpoint;
+  relationshipType?: string;
+  status: 'ready' | 'missing_person' | 'already_exists';
+  missingLocalKeys: string[];
+}

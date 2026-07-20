@@ -98,3 +98,44 @@ export function markSpam(
     { reason },
   );
 }
+
+export type CompleteResult =
+  | { ok: true }
+  | { ok: false; kind: 'not_found' }
+  | { ok: false; kind: 'invalid_transition'; from: Status }
+  | { ok: false; kind: 'unresolved'; pending: number };
+
+/**
+ * Marks a reviewed submission processed (idea.md §7). Guard: it must be
+ * in_review and have NO person still `pending` (deferred/ignored are fine).
+ */
+export function completeSubmission(db: Db, id: string, actorId: string): Promise<CompleteResult> {
+  return db.transaction().execute(async (trx): Promise<CompleteResult> => {
+    const row = await getSubmission(trx, id);
+    if (!row) return { ok: false, kind: 'not_found' };
+    if (row.status !== 'in_review') return { ok: false, kind: 'invalid_transition', from: row.status };
+
+    const pending = await trx
+      .selectFrom('submission_people')
+      .select((eb) => eb.fn.countAll<string>().as('count'))
+      .where('submission_id', '=', id)
+      .where('resolution_status', '=', 'pending')
+      .executeTakeFirstOrThrow();
+    const pendingCount = Number(pending.count);
+    if (pendingCount > 0) return { ok: false, kind: 'unresolved', pending: pendingCount };
+
+    await trx
+      .updateTable('submissions')
+      .set({ status: 'processed', processed_at: new Date(), updated_at: new Date() })
+      .where('id', '=', id)
+      .execute();
+    await insertAuditEntry(trx, {
+      actor_type: 'admin',
+      actor_id: actorId,
+      action: 'submission.processed',
+      entity_type: 'submission',
+      entity_id: id,
+    });
+    return { ok: true };
+  });
+}
