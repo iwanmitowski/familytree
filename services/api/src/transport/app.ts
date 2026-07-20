@@ -8,6 +8,7 @@ import { hmacAuth, type HmacAuthConfig } from '../auth/hmac';
 import { registerInviteRoutes } from '../invites/routes';
 import { registerSubmissionRoutes } from '../submissions/routes';
 import { registerMatchingRoutes } from '../matching/routes';
+import { registerPeopleRoutes } from '../people/routes';
 
 export type { AppEnv } from './http';
 export { writeError } from './http';
@@ -74,6 +75,7 @@ export function createApp({ logger, ping, hmac, db }: AppDeps) {
     registerInviteRoutes(app, deps);
     registerSubmissionRoutes(app, deps);
     registerMatchingRoutes(app, deps);
+    registerPeopleRoutes(app, deps);
   }
 
   // Reveals nothing about versions, hosts, or infrastructure (idea.md §4).
