@@ -62,7 +62,11 @@ describe('POST /api/questionnaire/submit', () => {
     const res = await POST(makeRequest(validBody()));
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('turnstile_failed');
-    expect(oracleFetchMock).not.toHaveBeenCalled();
+    // It reports the abuse event (fire-and-forget) but never submits.
+    expect(oracleFetchMock).toHaveBeenCalledTimes(1);
+    const [path, opts] = oracleFetchMock.mock.calls[0]!;
+    expect(path).toBe('/v1/internal/abuse-events');
+    expect((opts.body as { kind?: string }).kind).toBe('turnstile_rejected');
   });
 
   it('forwards a hashed fingerprint and never the raw IP', async () => {
