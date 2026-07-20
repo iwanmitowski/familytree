@@ -97,5 +97,45 @@ docker compose -f docker-compose.prod.yml ps --format '{{.Service}} {{.Ports}}'
 sudo ufw status verbose
 ```
 
-Разгръщането на web частта (Vercel) и автоматизираният API deploy се
-финализират в задача 35.
+## 8. Автоматизиран deploy (GitHub Actions)
+
+### API (`.github/workflows/deploy-api.yml`)
+
+При push към `main`, който засяга `services/api/**`, `packages/shared/**` или
+`infra/oracle/**` (както и ръчно през **workflow_dispatch**), pipeline-ът:
+
+1. пуска тестовете на API-то;
+2. строи **ARM64** образ и го push-ва в GHCR с таг **commit SHA** (и `:main`);
+   никога само `latest`;
+3. по SSH копира `deploy.sh` + compose/Caddyfile на VM-а и изпълнява
+   `scripts/deploy.sh`, който: pull-ва образа, **изпълнява миграциите преди**
+   новия API, рестартира и **пази health gate** — при неуспешен `/health`
+   deploy-ът се проваля и се отпечатва командата за rollback.
+
+Workflow-ът се активира само когато repo променливата **`DEPLOY_ENABLED`** е
+`true` (иначе се пропуска безопасно).
+
+Необходими **GitHub secrets**: `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`,
+`DEPLOY_SSH_KEY`. Необходими **repo variables**: `DEPLOY_ENABLED=true`,
+`API_DOMAIN=api.rod.mitovski.example`.
+
+### Rollback
+
+Пуснете `deploy-api.yml` ръчно (**Run workflow**) с
+`image_tag=<предишния commit SHA>` — той се намира в `/opt/familytree/.deploy-tag`
+или в GHCR. Миграциите са само напред; ако лоша миграция е причина, възстановете
+от backup по процедурата в [`backup-and-restore-bg.md`](backup-and-restore-bg.md).
+
+### Web (Vercel)
+
+Web частта се разгръща от **нативната GitHub интеграция на Vercel** при push към
+`main` (най-простото сигурно решение). `deploy-web.yml` само пуска проверките
+(lint/typecheck/test/build) като gate — не разгръща.
+
+Vercel настройка: свържете GitHub repo-то, root на проекта `apps/web`, и добавете
+env променливите от [`../apps/web/.env.example`](../apps/web/.env.example)
+(`ORACLE_API_BASE_URL`, `SERVICE_ID`, `SERVICE_HMAC_SECRET`, `IP_HASH_SECRET`,
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `AUTH_SECRET`,
+`ADMIN_EMAIL_ALLOWLIST`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`) и домейна
+`rod.mitovski.example`. `SERVICE_ID`/`SERVICE_HMAC_SECRET` трябва да съвпадат с
+Oracle `.env`.
