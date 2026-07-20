@@ -335,6 +335,34 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
+  /v1/internal/contact-leads:
+    get:
+      operationId: getContactLeads
+      tags: [submissions]
+      summary: Aggregate snowball contact leads (admin)
+      description: Potential next contacts derived from non-spam submission payloads (consented participants + referral people). Read-only; no new tables.
+      responses:
+        "200":
+          description: Contact leads.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, kind, sourceSubmissionId]
+                      properties:
+                        name: { type: string }
+                        contactHint: { type: [string, "null"] }
+                        kind: { type: string, enum: [participant, referral] }
+                        sourceSubmissionId: { type: string, format: uuid }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   /v1/internal/submission-people/{id}/find-matches:
     post:
       operationId: postSubmissionPeopleByIdFindMatches
