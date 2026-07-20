@@ -134,29 +134,43 @@ export function registerRelationshipRoutes(app: Hono<AppEnv>, deps: RouteDeps): 
     return Number.isFinite(n) ? Math.max(0, Math.min(Math.trunc(n), 6)) : dflt;
   };
 
+  // view=admin requires the admin role; everyone else is forced to public.
+  const resolveView = (c: Context<AppEnv>): 'admin' | 'public' =>
+    c.get('actorRole') === 'admin' && c.req.query('view') !== 'public' ? 'admin' : 'public';
+
   async function tree(c: Context<AppEnv>, overrides: ProjectionOptions) {
     const projection = await buildTreeProjection(db, c.req.param('personId') ?? '', {
       ancestors: intParam(c.req.query('ancestors'), overrides.ancestors ?? 4),
       descendants: intParam(c.req.query('descendants'), overrides.descendants ?? 2),
       includePartners: boolParam(c.req.query('includePartners'), overrides.includePartners ?? true),
       includeSiblings: boolParam(c.req.query('includeSiblings'), overrides.includeSiblings ?? false),
+      view: resolveView(c),
     });
     if (!projection) return writeError(c, 404, 'not_found', 'Човекът не е намерен');
     return c.json(projection);
   }
 
-  app.get('/v1/internal/tree/:personId', requireRole('admin'), (c) => tree(c, {}));
-  app.get('/v1/internal/tree/:personId/ancestors', requireRole('admin'), (c) => tree(c, { descendants: 0 }));
-  app.get('/v1/internal/tree/:personId/descendants', requireRole('admin'), (c) => tree(c, { ancestors: 0 }));
+  // No requireRole — public actors get the redacted (public) view.
+  app.get('/v1/internal/tree/:personId', (c) => tree(c, {}));
+  app.get('/v1/internal/tree/:personId/ancestors', (c) => tree(c, { descendants: 0 }));
+  app.get('/v1/internal/tree/:personId/descendants', (c) => tree(c, { ancestors: 0 }));
 
-  // Relationship path (admin; public redaction handled in Task 30).
-  app.get('/v1/internal/relationship-path', requireRole('admin'), async (c) => {
+  // Relationship path (public gets a redacted result — only the label + confidence).
+  app.get('/v1/internal/relationship-path', async (c) => {
     const a = c.req.query('personA');
     const b = c.req.query('personB');
     if (!a || !b) return writeError(c, 422, 'missing_params', 'Необходими са personA и personB');
     const maxDepth = Math.max(1, Math.min(10, Number(c.req.query('maxDepth')) || 6));
     const result = await resolveRelationship(db, a, b, maxDepth);
     if (!result.ok) return writeError(c, 422, 'unknown_person', 'Непознат човек');
+    if (resolveView(c) === 'public') {
+      // Never expose ids of people or common ancestors publicly.
+      return c.json({
+        connected: result.result.connected,
+        relationshipLabelBg: result.result.relationshipLabelBg,
+        confidence: result.result.confidence,
+      });
+    }
     return c.json(result.result);
   });
 }

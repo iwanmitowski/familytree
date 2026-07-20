@@ -2,6 +2,7 @@ import type { Kysely } from 'kysely';
 import type { DB } from '../db/generated/db';
 import { getPerson } from '../people/repo';
 import { ancestors, descendants } from './queries';
+import { redactTreeNode, type View } from '../privacy/redact';
 
 type Db = Kysely<DB>;
 
@@ -42,6 +43,8 @@ export interface ProjectionOptions {
   descendants?: number;
   includePartners?: boolean;
   includeSiblings?: boolean;
+  /** 'public' redacts person nodes through PersonRedactionService (idea.md §15). */
+  view?: View;
 }
 
 /**
@@ -162,7 +165,10 @@ export async function buildTreeProjection(
     }
   }
 
-  return { rootPersonId: rootId, nodes, edges, truncated };
+  const view: View = opts.view ?? 'admin';
+  const redactedNodes = view === 'public' ? nodes.map((n) => redactTreeNode(n, view)) : nodes;
+
+  return { rootPersonId: rootId, nodes: redactedNodes, edges, truncated };
 }
 
 function setGen(map: Map<string, number>, id: string, gen: number): void {
