@@ -21,6 +21,7 @@ import {
   type UnionResult,
 } from './unions-service';
 import { resolveRelationship } from './resolver';
+import { buildTreeProjection, type ProjectionOptions } from './projection';
 
 const REL_TYPES = ['biological', 'adoptive', 'step', 'foster', 'guardian', 'unknown'] as const;
 const VER_STATUS = ['proposed', 'confirmed', 'disputed', 'rejected'] as const;
@@ -125,6 +126,28 @@ export function registerRelationshipRoutes(app: Hono<AppEnv>, deps: RouteDeps): 
     if (result.kind === 'in_use') return writeError(c, 409, 'union_in_use', 'Съюзът се използва от връзка дете-родител');
     return writeError(c, 404, 'not_found', 'Съюзът не е намерен');
   });
+
+  // --- Tree projection (idea.md §13) ---
+  const boolParam = (v: string | undefined, dflt: boolean) => (v === undefined ? dflt : v === 'true');
+  const intParam = (v: string | undefined, dflt: number) => {
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) ? Math.max(0, Math.min(Math.trunc(n), 6)) : dflt;
+  };
+
+  async function tree(c: Context<AppEnv>, overrides: ProjectionOptions) {
+    const projection = await buildTreeProjection(db, c.req.param('personId') ?? '', {
+      ancestors: intParam(c.req.query('ancestors'), overrides.ancestors ?? 4),
+      descendants: intParam(c.req.query('descendants'), overrides.descendants ?? 2),
+      includePartners: boolParam(c.req.query('includePartners'), overrides.includePartners ?? true),
+      includeSiblings: boolParam(c.req.query('includeSiblings'), overrides.includeSiblings ?? false),
+    });
+    if (!projection) return writeError(c, 404, 'not_found', 'Човекът не е намерен');
+    return c.json(projection);
+  }
+
+  app.get('/v1/internal/tree/:personId', requireRole('admin'), (c) => tree(c, {}));
+  app.get('/v1/internal/tree/:personId/ancestors', requireRole('admin'), (c) => tree(c, { descendants: 0 }));
+  app.get('/v1/internal/tree/:personId/descendants', requireRole('admin'), (c) => tree(c, { ancestors: 0 }));
 
   // Relationship path (admin; public redaction handled in Task 30).
   app.get('/v1/internal/relationship-path', requireRole('admin'), async (c) => {
