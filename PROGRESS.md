@@ -40,7 +40,7 @@ The executing agent updates this file at the start and end of every task session
 | 31 | tree-visualization | todo | | |
 | 32 | tree-ux-path-highlight | todo | | |
 | 33 | backup-restore | todo | | |
-| 34 | exports-gedcom-json-csv | todo | | |
+| 34 | exports-gedcom-json-csv | done | 2026-07-20 | DoD 1.12. export/data.ts fetchExportData (canonical graph excl merged/deleted, stable id order, publicOnly drops living + filters their rows). formats.ts: toGedcom (5.5.1: HEAD/CHAR UTF-8, INDI + NAME /surname/, BIRT/DEAT with gedcomDate honoring precision exact→DD MON YYYY/month/year/approximate→ABT/range→BET AND/unknown→omit NEVER fake, FAM per union + synthetic for unionless pairs with HUSB/WIFE/CHIL, SOUR records), toJsonExport (flat versioned envelope not nested), toCsvPeople/Relationships (UTF-8 BOM for Excel Cyrillic). CLI src/export.ts (node dist/export.js gedcom|json|csv-people|csv-relationships --out --public), esbuild bundles dist/export.js, npm script + scripts/export-gedcom.sh wrapper. 6 unit (gedcomDate precision matrix, GEDCOM structural validity/slashed-surname/determinism, JSON envelope, CSV BOM) + 1 integration (public drops living + GEDCOM excludes living name). Bundled CLI smoke-tested against dev DB. Also removed a stray unused import that slipped into task-30. 62 API unit + 101 integration green; build clean. |
 | 35 | deploy-workflows | todo | | |
 | 36 | monitoring | todo | | |
 | 37 | e2e-playwright | todo | | |
