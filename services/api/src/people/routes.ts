@@ -13,6 +13,7 @@ import {
   searchPeople,
   type PromotionResult,
 } from './service';
+import { mergePerson } from './merge';
 
 const createSchema = z.object({
   firstName: z.string().min(1).max(100),
@@ -80,6 +81,18 @@ export function registerPeopleRoutes(app: Hono<AppEnv>, deps: RouteDeps): void {
       c,
       await linkPersonFromSubmission(db, c.req.param('id'), parsed.data.personId, actor(c)),
     );
+  });
+
+  const mergeSchema = z.object({ targetPersonId: z.string().uuid(), reason: z.string().min(1).max(2000) });
+
+  app.post('/v1/internal/people/:id/merge', requireRole('admin'), async (c) => {
+    const parsed = await parseJson(c, mergeSchema);
+    if ('response' in parsed) return parsed.response;
+    const result = await mergePerson(db, c.req.param('id'), parsed.data.targetPersonId, parsed.data.reason, actor(c));
+    if (result.ok) return c.json(result.person, 200);
+    if (result.kind === 'not_found') return writeError(c, 404, 'not_found', 'Човекът не е намерен');
+    if (result.kind === 'conflict') return writeError(c, 422, 'merge_conflict', result.message);
+    return writeError(c, 422, 'invalid_merge', result.message);
   });
 }
 
