@@ -335,6 +335,136 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
+  /v1/internal/submissions/{id}/suggested-relationships:
+    get:
+      operationId: getSubmissionsByIdSuggestedRelationships
+      tags: [submissions]
+      summary: Canonical edge suggestions from a submission (admin)
+      description: Maps submission relationships to parent_child / union suggestions via resolved matched_person_ids; siblings become shared-parent hints (idea.md §7, §11).
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Suggested relationships.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [kind, viaLocalKeys, a, b, status, missingLocalKeys]
+                      properties:
+                        kind: { type: string, enum: [parent_child, union, sibling_hint] }
+                        viaLocalKeys: { type: array, items: { type: string } }
+                        a: { $ref: "#/components/schemas/SuggestionEndpoint" }
+                        b: { $ref: "#/components/schemas/SuggestionEndpoint" }
+                        relationshipType: { type: string }
+                        status: { type: string, enum: [ready, missing_person, already_exists] }
+                        missingLocalKeys: { type: array, items: { type: string } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/internal/submissions/{id}/confirm-relationship:
+    post:
+      operationId: postSubmissionsByIdConfirmRelationship
+      tags: [submissions]
+      summary: Confirm a suggested relationship into a canonical edge/union (admin)
+      description: Creates a confirmed parent-child edge or family union and attaches supporting questionnaire evidence.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [kind, parentPersonId, childPersonId]
+                  properties:
+                    kind: { type: string, enum: [parent_child] }
+                    parentPersonId: { type: string, format: uuid }
+                    childPersonId: { type: string, format: uuid }
+                    relationshipType: { type: string }
+                - type: object
+                  required: [kind, partnerPersonIds]
+                  properties:
+                    kind: { type: string, enum: [union] }
+                    partnerPersonIds: { type: array, items: { type: string, format: uuid } }
+                    unionType: { type: string, enum: [marriage, partnership, unknown] }
+      responses:
+        "201":
+          description: Relationship confirmed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  kind: { type: string, enum: [parent_child, union] }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/submissions/{id}/complete:
+    post:
+      operationId: postSubmissionsByIdComplete
+      tags: [submissions]
+      summary: Mark a reviewed submission processed (admin)
+      description: Guarded — the submission must be in_review with no person left pending (deferred/ignored are acceptable).
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200": { $ref: "#/components/responses/SubmissionState" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /v1/internal/submission-people/{id}/defer:
+    post:
+      operationId: postSubmissionPeopleByIdDefer
+      tags: [submissions]
+      summary: Defer a submitted person for later (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OptionalReasonRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/OkResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/submission-people/{id}/ignore:
+    post:
+      operationId: postSubmissionPeopleByIdIgnore
+      tags: [submissions]
+      summary: Ignore a submitted person (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OptionalReasonRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/OkResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
   /v1/internal/contact-leads:
     get:
       operationId: getContactLeads
@@ -929,6 +1059,15 @@ components:
             properties:
               id: { type: string, format: uuid }
               status: { $ref: "#/components/schemas/SubmissionStatus" }
+    OkResult:
+      description: Operation succeeded.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [ok]
+            properties:
+              ok: { type: boolean }
 
   schemas:
     Error:
@@ -1171,6 +1310,17 @@ components:
       required: [reason]
       properties:
         reason: { type: string, maxLength: 2000 }
+    OptionalReasonRequest:
+      type: object
+      properties:
+        reason: { type: string, maxLength: 2000 }
+    SuggestionEndpoint:
+      type: object
+      required: [localKey, personId, label]
+      properties:
+        localKey: { type: string }
+        personId: { type: [string, "null"], format: uuid }
+        label: { type: string }
 
     # ----- Matching -----
     MatchReason:
