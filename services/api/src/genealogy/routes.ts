@@ -20,6 +20,7 @@ import {
   removePartner,
   type UnionResult,
 } from './unions-service';
+import { resolveRelationship } from './resolver';
 
 const REL_TYPES = ['biological', 'adoptive', 'step', 'foster', 'guardian', 'unknown'] as const;
 const VER_STATUS = ['proposed', 'confirmed', 'disputed', 'rejected'] as const;
@@ -123,6 +124,17 @@ export function registerRelationshipRoutes(app: Hono<AppEnv>, deps: RouteDeps): 
     if (result.ok) return c.body(null, 204);
     if (result.kind === 'in_use') return writeError(c, 409, 'union_in_use', 'Съюзът се използва от връзка дете-родител');
     return writeError(c, 404, 'not_found', 'Съюзът не е намерен');
+  });
+
+  // Relationship path (admin; public redaction handled in Task 30).
+  app.get('/v1/internal/relationship-path', requireRole('admin'), async (c) => {
+    const a = c.req.query('personA');
+    const b = c.req.query('personB');
+    if (!a || !b) return writeError(c, 422, 'missing_params', 'Необходими са personA и personB');
+    const maxDepth = Math.max(1, Math.min(10, Number(c.req.query('maxDepth')) || 6));
+    const result = await resolveRelationship(db, a, b, maxDepth);
+    if (!result.ok) return writeError(c, 422, 'unknown_person', 'Непознат човек');
+    return c.json(result.result);
   });
 }
 
