@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import type { DB } from '../db/generated/db';
 import { insertAuditEntry } from '../audit/repo';
 import { consumeInvite } from '../invites/service';
+import { normalize } from '../names';
 import {
   insertConsent,
   insertSubmission,
@@ -64,16 +65,6 @@ export type CreateSubmissionResult =
   | { ok: true; submissionId: string }
   | { ok: false; kind: 'rate_limited' }
   | { ok: false; kind: 'invite_invalid'; reason: string };
-
-/** Placeholder normalization until Task 19 wires the real pipeline. */
-function normalizePlaceholder(...parts: (string | undefined)[]): string {
-  return parts
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, ' ');
-}
 
 /** Exact year → from=to; approximate → ±3 window (never a fabricated date). */
 function yearRange(year: number | undefined, approx: boolean | undefined): [number | null, number | null] {
@@ -144,7 +135,9 @@ export async function createSubmission(
         living_status: LIVING_STATUSES.has(person.livingStatus ?? '')
           ? (person.livingStatus as 'living' | 'deceased' | 'unknown')
           : 'unknown',
-        normalized_name: normalizePlaceholder(person.firstName, person.middleName, person.surname),
+        normalized_name: normalize(
+          [person.firstName, person.middleName, person.surname].filter(Boolean).join(' '),
+        ),
       };
       await insertSubmissionPerson(trx, row);
     }
