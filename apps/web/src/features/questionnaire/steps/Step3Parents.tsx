@@ -12,7 +12,6 @@ import type { z } from 'zod';
 type FormValues = z.input<typeof step3Schema>;
 
 const PERSON_OPTS = {
-  showDeath: true,
   showOccupation: true,
   showRelationshipType: true,
   showInfoSource: true,
@@ -23,6 +22,8 @@ export function Step3Parents() {
   const {
     register,
     handleSubmit,
+    control,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(step3Schema),
@@ -46,6 +47,8 @@ export function Step3Parents() {
             <PersonBlockFields
               register={register}
               errors={errors}
+              control={control}
+              setValue={setValue}
               prefix="father"
               idPrefix="father"
               options={PERSON_OPTS}
@@ -60,6 +63,8 @@ export function Step3Parents() {
             <PersonBlockFields
               register={register}
               errors={errors}
+              control={control}
+              setValue={setValue}
               prefix="mother"
               idPrefix="mother"
               options={PERSON_OPTS}

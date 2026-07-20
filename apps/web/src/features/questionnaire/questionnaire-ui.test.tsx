@@ -78,3 +78,73 @@ describe('questionnaire multi-step form', () => {
     expect(screen.getByLabelText('Вашите имена')).toHaveValue('');
   });
 });
+
+async function advanceToStep2(name = 'Иван Петров Тестов', fillingForOther = false) {
+  fireEvent.change(screen.getByLabelText('Вашите имена'), { target: { value: name } });
+  fireEvent.change(screen.getByLabelText('Каква е връзката Ви с фамилията Митовски?'), {
+    target: { value: 'внук' },
+  });
+  if (fillingForOther) {
+    fireEvent.click(screen.getByLabelText('Попълвам от името на друг роднина'));
+  }
+  fireEvent.click(screen.getByLabelText(/Съгласен\/съгласна съм изпратената информация/));
+  fireEvent.click(screen.getByRole('button', { name: 'Напред' }));
+}
+
+describe('step 2 UX (filling for yourself)', () => {
+  it('prefills your names from step 1 and never asks a living person for a death year', async () => {
+    renderForm();
+    await advanceToStep2('Иван Петров Тестов');
+    expect(await screen.findByRole('heading', { name: 'Информация за Вас' })).toBeInTheDocument();
+
+    // Names carried over from step 1 (still editable).
+    expect(screen.getByLabelText('Собствено име')).toHaveValue('Иван');
+    expect(screen.getByLabelText('Бащино име')).toHaveValue('Петров');
+    expect(screen.getByLabelText('Фамилия')).toHaveValue('Тестов');
+
+    // You are alive: no living-status question and no death year.
+    expect(screen.queryByLabelText('Жив/а ли е този човек?')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Година на смърт')).not.toBeInTheDocument();
+
+    // Occupation is now part of "about you".
+    expect(screen.getByLabelText('Професия')).toBeInTheDocument();
+  });
+
+  it('asks about the other person (with living status) when filling on their behalf', async () => {
+    renderForm();
+    await advanceToStep2('Мария Попълваща', true);
+    expect(await screen.findByRole('heading', { name: 'Информация за лицето' })).toBeInTheDocument();
+
+    // No prefill — this step describes someone else.
+    expect(screen.getByLabelText('Собствено име')).toHaveValue('');
+    expect(screen.getByLabelText('Жив/а ли е този човек?')).toBeInTheDocument();
+  });
+});
+
+describe('conditional death fields (relatives)', () => {
+  it('shows the death year only after marking the person deceased', async () => {
+    renderForm(2); // Родители
+    expect(screen.queryByLabelText('Година на смърт')).not.toBeInTheDocument();
+
+    const statusSelects = screen.getAllByLabelText('Жив/а ли е този човек?');
+    fireEvent.change(statusSelects[0]!, { target: { value: 'deceased' } });
+
+    expect(await screen.findByLabelText('Година на смърт')).toBeInTheDocument();
+    // Only the deceased parent gets the field.
+    expect(screen.getAllByLabelText('Година на смърт')).toHaveLength(1);
+  });
+});
+
+describe('year picker', () => {
+  it('picks a year from the calendar-like grid', async () => {
+    renderForm(2); // Родители
+    const [pickerButton] = screen.getAllByRole('button', { name: 'Избор на година: Година на раждане' });
+    fireEvent.click(pickerButton!);
+
+    const visibleYear = String(new Date().getFullYear() - 11);
+    fireEvent.click(await screen.findByRole('button', { name: visibleYear }));
+
+    const [birthInput] = screen.getAllByLabelText('Година на раждане');
+    await waitFor(() => expect(birthInput).toHaveValue(Number(visibleYear)));
+  });
+});

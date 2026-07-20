@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { signIn } from '@/server/auth';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const metadata: Metadata = { title: 'Администраторски вход' };
@@ -37,6 +38,28 @@ export default async function AdminLoginPage({
               Вход с Google
             </Button>
           </form>
+
+          {/* Dev/E2E only — hard-guarded off in production (see e2e-credentials.ts). */}
+          {process.env.E2E_TEST_MODE === '1' && (
+            <form
+              action={async (formData: FormData) => {
+                'use server';
+                await signIn('credentials', {
+                  email: formData.get('email'),
+                  password: formData.get('password'),
+                  redirectTo: '/admin',
+                });
+              }}
+              className="grid gap-2 border-t pt-4"
+            >
+              <p className="text-xs text-muted-foreground">Тестов вход (само за разработка)</p>
+              <Input name="email" type="email" placeholder="Имейл" required />
+              <Input name="password" type="password" placeholder="Парола" required />
+              <Button type="submit" variant="outline" className="w-full">
+                Тестов вход
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>

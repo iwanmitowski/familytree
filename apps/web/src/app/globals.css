@@ -3,47 +3,52 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Warm heritage palette (idea.md §9 — the questionnaire must feel pleasant and
+ * trustworthy): cream background, deep forest-green primary, soft amber accent.
+ * Calm and archival rather than clinical black-and-white.
+ */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: oklch(0.977 0.008 84);
+  --foreground: oklch(0.27 0.025 55);
+  --card: oklch(0.995 0.004 84);
+  --card-foreground: oklch(0.27 0.025 55);
+  --popover: oklch(0.995 0.004 84);
+  --popover-foreground: oklch(0.27 0.025 55);
+  --primary: oklch(0.44 0.075 155);
+  --primary-foreground: oklch(0.985 0.005 84);
+  --secondary: oklch(0.945 0.018 84);
+  --secondary-foreground: oklch(0.33 0.03 60);
+  --muted: oklch(0.945 0.014 84);
+  --muted-foreground: oklch(0.5 0.025 62);
+  --accent: oklch(0.93 0.035 90);
+  --accent-foreground: oklch(0.33 0.03 60);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.895 0.02 80);
+  --input: oklch(0.87 0.022 80);
+  --ring: oklch(0.55 0.07 155);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.205 0.015 65);
+  --foreground: oklch(0.955 0.01 84);
+  --card: oklch(0.25 0.018 65);
+  --card-foreground: oklch(0.955 0.01 84);
+  --popover: oklch(0.25 0.018 65);
+  --popover-foreground: oklch(0.955 0.01 84);
+  --primary: oklch(0.72 0.1 155);
+  --primary-foreground: oklch(0.2 0.02 65);
+  --secondary: oklch(0.3 0.02 65);
+  --secondary-foreground: oklch(0.955 0.01 84);
+  --muted: oklch(0.3 0.02 65);
+  --muted-foreground: oklch(0.72 0.02 80);
+  --accent: oklch(0.32 0.03 80);
+  --accent-foreground: oklch(0.955 0.01 84);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.6 0.08 155);
 }
 
 @theme inline {

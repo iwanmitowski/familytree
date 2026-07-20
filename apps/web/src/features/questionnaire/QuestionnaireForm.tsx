@@ -43,7 +43,7 @@ function RestoreBanner() {
 }
 
 export function QuestionnaireForm() {
-  const { step, draftSavedAt, restorePrompt } = useQuestionnaire();
+  const { step, values, draftSavedAt, restorePrompt } = useQuestionnaire();
 
   // Gate the form behind the restore prompt so the step forms mount with the
   // correct default values (either the applied draft or a clean slate).
@@ -55,19 +55,29 @@ export function QuestionnaireForm() {
     );
   }
 
+  // Step 2 is about the participant themselves — or the relative they fill for.
+  const fillingForOther = Boolean((values as { fillingForOther?: boolean }).fillingForOther);
+  const title = step === 1 && fillingForOther ? 'Информация за лицето' : STEP_TITLES[step];
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <Stepper step={step} />
       <DraftSavedIndicator savedAt={draftSavedAt} />
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">{STEP_TITLES[step]}</h1>
+      <div className="rounded-xl border bg-card p-5 shadow-sm sm:p-8">
+        <h1 className="mb-6 text-2xl font-semibold tracking-tight">{title}</h1>
 
-      {step === 0 && <Step1Participant />}
-      {step === 1 && <Step2Self />}
-      {step === 2 && <Step3Parents />}
-      {step === 3 && <Step4Grandparents />}
-      {step === 4 && <Step5Relatives />}
-      {step === 5 && <Step6Origin />}
-      {step === 6 && <Step7Review />}
+        {step === 0 && <Step1Participant />}
+        {step === 1 && <Step2Self />}
+        {step === 2 && <Step3Parents />}
+        {step === 3 && <Step4Grandparents />}
+        {step === 4 && <Step5Relatives />}
+        {step === 5 && <Step6Origin />}
+        {step === 6 && <Step7Review />}
+      </div>
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        🔒 Информацията се преглежда от семеен администратор и не се показва публично без съгласие.
+        Живите хора никога не се показват в публичното дърво.
+      </p>
     </div>
   );
 }
