@@ -15,7 +15,7 @@ function initials(label: string | null | undefined): string {
 }
 
 export function PersonNode({ data, selected }: NodeProps<Node<PersonNodeData>>) {
-  const { node, isRoot } = data;
+  const { node, isRoot, dimmed, collapsible, collapsed, onToggleCollapse, onLoadMore } = data;
   const masked = isMasked(node);
   const years = personYears(node);
   const verification = verificationLabel(node.verificationState);
@@ -23,13 +23,34 @@ export function PersonNode({ data, selected }: NodeProps<Node<PersonNodeData>>) 
   return (
     <div
       className={[
-        'flex w-[190px] items-center gap-2 rounded-lg border px-3 py-2 text-left shadow-sm transition',
+        'relative flex w-[190px] items-center gap-2 rounded-lg border px-3 py-2 text-left shadow-sm transition',
         masked ? 'border-dashed bg-muted/50 text-muted-foreground' : 'bg-card',
         isRoot ? 'ring-2 ring-primary' : '',
         selected ? 'ring-2 ring-primary/60' : '',
+        dimmed ? 'opacity-25' : '',
       ].join(' ')}
     >
       <Handle type="target" position={Position.Top} className="!bg-muted-foreground/40" />
+      {onLoadMore && (
+        <button
+          type="button"
+          title="Покажи още"
+          onClick={(e) => { e.stopPropagation(); onLoadMore(node.id); }}
+          className="absolute -right-2 -top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full border bg-background text-xs shadow"
+        >
+          +
+        </button>
+      )}
+      {collapsible && (
+        <button
+          type="button"
+          title={collapsed ? 'Разгъни' : 'Свий'}
+          onClick={(e) => { e.stopPropagation(); onToggleCollapse?.(node.id); }}
+          className="absolute -bottom-2 left-1/2 z-10 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full border bg-background text-xs shadow"
+        >
+          {collapsed ? '▸' : '▾'}
+        </button>
+      )}
       <div
         aria-hidden
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium ${

@@ -9,7 +9,9 @@ export function UnionNode({ data }: NodeProps<Node<PersonNodeData>>) {
   const label = unionTypeLabel(data.node.unionType);
   return (
     <div
-      className="flex h-[26px] w-[26px] items-center justify-center rounded-full border-2 border-muted-foreground/50 bg-background"
+      className={`flex h-[26px] w-[26px] items-center justify-center rounded-full border-2 border-muted-foreground/50 bg-background transition ${
+        data.dimmed ? 'opacity-25' : ''
+      }`}
       title={label}
       aria-label={label}
     >
