@@ -109,6 +109,10 @@ Cloudflare Turnstile on final submit (verified server-side in the BFF), honeypot
 
 Living people default to `privacy_level = private`. Public projections of living people are reduced to a masked label and a birth decade at most; email, phone, exact dates, addresses, precise locations, documents, notes, and internal source details are never exposed publicly. A single `PersonRedactionService` centralizes this logic (Task 30).
 
+## 8.1 Uploaded files (idea.md §24 Phase 6, Task 38)
+
+Private photos/documents attach to a person and/or source. The browser uploads multipart to the BFF, which forwards a signed JSON+base64 request to the API (one trust boundary — [ADR 0005](adr/0005-file-uploads-storage.md)). The API verifies the content type by **magic-byte sniffing** (allowlist: JPEG/PNG/WEBP/PDF), strips image metadata (EXIF/GPS/XMP) in pure JS, caps at 10MB, and stores the object behind a `FileStorage` interface (local directory by default, S3-swappable). Files are **admin-only**, streamed through the API, and never appear in any public view; the backup script mirrors the store off-box and records a file manifest.
+
 ## 9. Repository structure
 
 See [`../README.md`](../README.md) and idea.md §18. npm-workspaces monorepo: `apps/web` (Next.js), `services/api` (TypeScript/Node), `packages/shared` (HMAC + Zod), `contracts` (OpenAPI + HMAC), `infra/oracle` (Compose, Caddy, cloud-init), `scripts`, `docs`.

@@ -88,17 +88,32 @@ AGE_ARGS=(-r "$AGE_RECIPIENT")
 [ -n "${AGE_VERIFY_RECIPIENT:-}" ] && AGE_ARGS+=(-r "$AGE_VERIFY_RECIPIENT")
 age "${AGE_ARGS[@]}" -o "$ENC" "$DUMP" || fail "age encryption failed"
 
-# 4. Manifest.
-MANIFEST="${TMP_DIR}/manifest.json"
-printf '{"created":"%s","db":"%s","dump":"%s","sha256":"%s","size_bytes":%s}\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$POSTGRES_DB" "$(basename "$ENC")" \
-  "$(cut -d' ' -f1 "${DUMP}.sha256")" "$(stat -c%s "$ENC")" > "$MANIFEST"
+# 4. Uploaded-files stats for the manifest (idea.md §21 "file manifest").
+FILE_STORAGE_DIR="${FILE_STORAGE_DIR:-/opt/familytree/file-storage}"
+FILES_COUNT=0
+FILES_BYTES=0
+if [ -d "$FILE_STORAGE_DIR" ]; then
+  FILES_COUNT="$(find "$FILE_STORAGE_DIR" -type f | wc -l | tr -d ' ')"
+  FILES_BYTES="$(find "$FILE_STORAGE_DIR" -type f -printf '%s\n' 2>/dev/null | awk '{s+=$1} END {print s+0}')"
+fi
 
-# 5. Upload (only after a successful dump + encryption).
+# 5. Manifest (DB + file counts/checksum).
+MANIFEST="${TMP_DIR}/manifest.json"
+printf '{"created":"%s","db":"%s","dump":"%s","sha256":"%s","size_bytes":%s,"files_count":%s,"files_bytes":%s}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$POSTGRES_DB" "$(basename "$ENC")" \
+  "$(cut -d' ' -f1 "${DUMP}.sha256")" "$(stat -c%s "$ENC")" "$FILES_COUNT" "$FILES_BYTES" > "$MANIFEST"
+
+# 6. Upload (only after a successful dump + encryption).
 DEST="${RCLONE_REMOTE}/db/daily/${STAMP}"
 rclone copyto "$ENC" "${DEST}/$(basename "$ENC")" || fail "rclone upload failed"
 rclone copyto "${DUMP}.sha256" "${DEST}/$(basename "${DUMP}.sha256")" || fail "rclone checksum upload failed"
 rclone copyto "$MANIFEST" "${DEST}/manifest.json" || fail "rclone manifest upload failed"
+
+# Sync the private uploaded-files store to the remote (idea.md §24 Phase 6).
+# Files are already at rest on the volume; this mirrors them off-box.
+if [ -d "$FILE_STORAGE_DIR" ] && [ "$FILES_COUNT" -gt 0 ]; then
+  rclone sync "$FILE_STORAGE_DIR" "${RCLONE_REMOTE}/files" || fail "rclone files sync failed"
+fi
 
 # Promote to weekly (Sunday) and monthly (1st).
 [ "$DOW" = "7" ] && rclone copyto "$ENC" "${RCLONE_REMOTE}/db/weekly/${STAMP}/$(basename "$ENC")" || true

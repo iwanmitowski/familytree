@@ -62,6 +62,8 @@ tags:
     description: Parent-child relationships and unions.
   - name: tree
     description: Tree projection and relationship paths.
+  - name: files
+    description: Private uploaded files (photos, documents) — admin only.
 
 security:
   - ServiceHmac: []
@@ -961,6 +963,90 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "422": { $ref: "#/components/responses/UnprocessableEntity" }
 
+  /v1/internal/files:
+    get:
+      operationId: getFiles
+      tags: [files]
+      summary: List a person's or source's files (admin)
+      description: Metadata only. Files are admin-only and never exposed publicly (idea.md §15, §24).
+      parameters:
+        - { name: personId, in: query, schema: { type: string, format: uuid } }
+        - { name: sourceId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: File metadata list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/FileMeta" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+    post:
+      operationId: postFiles
+      tags: [files]
+      summary: Upload a file (admin)
+      description: JSON+base64 (the BFF converts the browser multipart). Content type is verified by magic-byte sniffing; images are stripped of metadata; 10MB cap (idea.md §24 Phase 6).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, contentBase64]
+              properties:
+                filename: { type: string, maxLength: 500 }
+                contentBase64: { type: string }
+                personId: { type: [string, "null"], format: uuid }
+                sourceId: { type: [string, "null"], format: uuid }
+      responses:
+        "201":
+          description: Stored file metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileMeta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/internal/files/{id}:
+    get:
+      operationId: getFilesById
+      tags: [files]
+      summary: Fetch a file's bytes (admin, base64)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: File metadata + base64 content (the BFF streams the decoded bytes).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/FileMeta"
+                  - type: object
+                    required: [contentBase64]
+                    properties:
+                      contentBase64: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: deleteFilesById
+      tags: [files]
+      summary: Soft-delete a file and remove its object (admin)
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "204": { description: Deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     ServiceHmac:
@@ -1351,6 +1437,18 @@ components:
         localKey: { type: string }
         personId: { type: [string, "null"], format: uuid }
         label: { type: string }
+    FileMeta:
+      type: object
+      required: [id, originalFilename, contentType, sizeBytes, sha256, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        personId: { type: [string, "null"], format: uuid }
+        sourceId: { type: [string, "null"], format: uuid }
+        originalFilename: { type: string }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp, application/pdf] }
+        sizeBytes: { type: integer }
+        sha256: { type: string }
+        createdAt: { type: string, format: date-time }
 
     # ----- Matching -----
     MatchReason:

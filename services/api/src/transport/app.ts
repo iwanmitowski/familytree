@@ -11,6 +11,7 @@ import { registerMatchingRoutes } from '../matching/routes';
 import { registerPeopleRoutes } from '../people/routes';
 import { registerRelationshipRoutes } from '../genealogy/routes';
 import { registerSourceRoutes } from '../sources/routes';
+import { registerFileRoutes } from '../files/routes';
 import { registerMonitoringRoutes } from '../metrics/routes';
 import { httpDuration, httpRequests, metricsText } from '../metrics/registry';
 
@@ -87,6 +88,7 @@ export function createApp({ logger, ping, hmac, db }: AppDeps) {
     registerPeopleRoutes(app, deps);
     registerRelationshipRoutes(app, deps);
     registerSourceRoutes(app, deps);
+    registerFileRoutes(app, deps);
     registerMonitoringRoutes(app, deps);
   }
 

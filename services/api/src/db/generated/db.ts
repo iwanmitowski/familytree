@@ -63,6 +63,20 @@ export interface FamilyUnions {
   union_type: Generated<string>;
 }
 
+export interface Files {
+  content_type: string;
+  created_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+  id: Generated<string>;
+  original_filename: string;
+  person_id: string | null;
+  sha256: string;
+  size_bytes: number;
+  source_id: string | null;
+  storage_key: string;
+  uploaded_by: string;
+}
+
 export interface IdempotencyKeys {
   created_at: Generated<Timestamp>;
   expires_at: Timestamp;
@@ -246,6 +260,7 @@ export interface DB {
   consents: Consents;
   evidence: Evidence;
   family_unions: FamilyUnions;
+  files: Files;
   idempotency_keys: IdempotencyKeys;
   invites: Invites;
   match_candidates: MatchCandidates;

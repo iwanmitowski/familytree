@@ -93,3 +93,13 @@ export interface PersonEvidenceItem {
 export interface MergedEnvelope {
   mergedIntoPersonId: string;
 }
+
+export interface FileMeta {
+  id: string;
+  personId: string | null;
+  sourceId: string | null;
+  originalFilename: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
