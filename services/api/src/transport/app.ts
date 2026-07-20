@@ -6,6 +6,7 @@ import type { DB } from '../db/generated/db';
 import { writeError, type AppEnv } from './http';
 import { hmacAuth, type HmacAuthConfig } from '../auth/hmac';
 import { registerInviteRoutes } from '../invites/routes';
+import { registerSubmissionRoutes } from '../submissions/routes';
 
 export type { AppEnv } from './http';
 export { writeError } from './http';
@@ -70,6 +71,7 @@ export function createApp({ logger, ping, hmac, db }: AppDeps) {
   if (db) {
     const deps: RouteDeps = { db, logger };
     registerInviteRoutes(app, deps);
+    registerSubmissionRoutes(app, deps);
   }
 
   // Reveals nothing about versions, hosts, or infrastructure (idea.md §4).
