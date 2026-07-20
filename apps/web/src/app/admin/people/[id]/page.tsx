@@ -15,6 +15,7 @@ import { PersonHeaderCard } from '@/features/people/PersonHeaderCard';
 import { RelationshipsTab } from '@/features/people/RelationshipsTab';
 import { UnionsTab } from '@/features/people/UnionsTab';
 import { SourcesTab } from '@/features/people/SourcesTab';
+import { FilesTab } from '@/features/people/FilesTab';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -48,6 +49,7 @@ export default function PersonPage() {
           <TabsTrigger value="relationships">Връзки</TabsTrigger>
           <TabsTrigger value="unions">Съюзи</TabsTrigger>
           <TabsTrigger value="sources">Източници</TabsTrigger>
+          <TabsTrigger value="files">Файлове</TabsTrigger>
           <TabsTrigger value="history">История</TabsTrigger>
         </TabsList>
 
@@ -100,6 +102,10 @@ export default function PersonPage() {
 
         <TabsContent value="sources" className="pt-4">
           <SourcesTab personId={person.id} sourceCount={person.sourceCount} />
+        </TabsContent>
+
+        <TabsContent value="files" className="pt-4">
+          <FilesTab personId={person.id} />
         </TabsContent>
 
         <TabsContent value="history" className="pt-4">

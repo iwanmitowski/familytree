@@ -69,6 +69,12 @@ services:
       DATABASE_URL: postgres://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SERVICE_ID: ${SERVICE_ID}
       SERVICE_HMAC_SECRET: ${SERVICE_HMAC_SECRET}
+      # Private uploaded-files store (idea.md §24 Phase 6). A host bind-mount so
+      # the backup cron (on the host) can sync it off-box; writable despite
+      # read_only because it is an explicit mount.
+      FILE_STORAGE_DIR: /app/file-storage
+    volumes:
+      - ./file-storage:/app/file-storage
     depends_on:
       postgres:
         condition: service_healthy
