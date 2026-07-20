@@ -7,7 +7,9 @@ import { Step1Participant } from './steps/Step1Participant';
 import { Step2Self } from './steps/Step2Self';
 import { Step3Parents } from './steps/Step3Parents';
 import { Step4Grandparents } from './steps/Step4Grandparents';
-import { StepPlaceholder } from './steps/StepPlaceholder';
+import { Step5Relatives } from './steps/Step5Relatives';
+import { Step6Origin } from './steps/Step6Origin';
+import { Step7Review } from './steps/Step7Review';
 import { Button } from '@/components/ui/button';
 
 function DraftSavedIndicator({ savedAt }: { savedAt: number | undefined }) {
@@ -63,7 +65,9 @@ export function QuestionnaireForm() {
       {step === 1 && <Step2Self />}
       {step === 2 && <Step3Parents />}
       {step === 3 && <Step4Grandparents />}
-      {step >= 4 && <StepPlaceholder title={STEP_TITLES[step]!} />}
+      {step === 4 && <Step5Relatives />}
+      {step === 5 && <Step6Origin />}
+      {step === 6 && <Step7Review />}
     </div>
   );
 }

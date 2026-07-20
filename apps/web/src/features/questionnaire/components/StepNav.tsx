@@ -8,11 +8,13 @@ export function StepNav({
   onBack,
   onSkip,
   submitLabel = 'Напред',
+  submitDisabled = false,
 }: {
   canBack: boolean;
   onBack: () => void;
   onSkip?: () => void;
   submitLabel?: string;
+  submitDisabled?: boolean;
 }) {
   return (
     <div className="sticky bottom-0 mt-8 flex flex-wrap items-center gap-3 border-t bg-background/95 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -26,7 +28,7 @@ export function StepNav({
           Пропусни тази стъпка
         </Button>
       )}
-      <Button type="submit" className="ml-auto">
+      <Button type="submit" className="ml-auto" disabled={submitDisabled}>
         {submitLabel}
       </Button>
     </div>

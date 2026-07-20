@@ -40,12 +40,15 @@ const QuestionnaireContext = createContext<QuestionnaireContextValue | null>(nul
 export function QuestionnaireProvider({
   children,
   initialStep = 0,
+  initialValues = {},
 }: {
   children: ReactNode;
   initialStep?: number;
+  /** Seed accumulated values (used by tests and deep links). */
+  initialValues?: QuestionnaireDraftValues;
 }) {
   const [step, setStep] = useState(initialStep);
-  const [values, setValues] = useState<QuestionnaireDraftValues>({});
+  const [values, setValues] = useState<QuestionnaireDraftValues>(initialValues);
   const [draftSavedAt, setDraftSavedAt] = useState<number | undefined>(undefined);
   const [restorePrompt, setRestorePrompt] = useState(false);
   // Lazy init runs once and is pure at render time (avoids an impure Date.now()
