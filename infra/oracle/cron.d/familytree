@@ -1,0 +1,15 @@
+# Family tree scheduled jobs (install: cp to /etc/cron.d/familytree; must be
+# owned by root, mode 644). Env is loaded from /opt/familytree/.env.
+# m h dom mon dow user command
+
+# Daily encrypted backup to the primary remote (03:30 UTC).
+30 3 * * *   deploy  set -a; . /opt/familytree/.env; set +a; /opt/familytree/scripts/backup-db.sh >> /var/log/familytree-backup.log 2>&1
+
+# Weekly second copy to R2 (Sunday 04:00 UTC).
+0 4 * * 0    deploy  set -a; . /opt/familytree/.env; set +a; /opt/familytree/scripts/backup-db.sh --remote r2 >> /var/log/familytree-backup.log 2>&1
+
+# Monthly automated restore test (1st, 05:00 UTC).
+0 5 1 * *    deploy  set -a; . /opt/familytree/.env; set +a; /opt/familytree/scripts/verify-backup.sh >> /var/log/familytree-verify.log 2>&1
+
+# Daily disk usage alert (06:00 UTC).
+0 6 * * *    deploy  set -a; . /opt/familytree/.env; set +a; MOUNT=/ THRESHOLD=80 /opt/familytree/scripts/check-disk.sh >> /var/log/familytree-disk.log 2>&1
