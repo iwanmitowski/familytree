@@ -9,13 +9,19 @@ export class OracleError extends Error {
   readonly status: number;
   readonly code: string;
   readonly requestId?: string;
+  /**
+   * Parsed upstream body — only safe, non-sensitive fields should be read.
+   * Non-enumerable so it never leaks through JSON.stringify / structured logs.
+   */
+  declare readonly data?: unknown;
 
-  constructor(status: number, code: string, message: string, requestId?: string) {
+  constructor(status: number, code: string, message: string, requestId?: string, data?: unknown) {
     super(message);
     this.name = 'OracleError';
     this.status = status;
     this.code = code;
     this.requestId = requestId;
+    Object.defineProperty(this, 'data', { value: data, enumerable: false });
   }
 }
 
@@ -35,8 +41,8 @@ export function normalizeErrorBody(
       const code = typeof err.code === 'string' ? err.code : 'upstream_error';
       const message = typeof err.message === 'string' ? err.message : 'Upstream error';
       const requestId = typeof err.requestId === 'string' ? err.requestId : fallbackRequestId;
-      return new OracleError(status, code, message, requestId);
+      return new OracleError(status, code, message, requestId, body);
     }
   }
-  return new OracleError(status, 'upstream_error', 'Upstream error', fallbackRequestId);
+  return new OracleError(status, 'upstream_error', 'Upstream error', fallbackRequestId, body);
 }

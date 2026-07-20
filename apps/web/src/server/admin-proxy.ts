@@ -35,7 +35,10 @@ export async function adminProxy(req: Request, opts: AdminProxyOptions): Promise
       idempotencyKey: isMutating ? randomUUID() : undefined,
       requestId,
     });
-    return NextResponse.json(res.data, { status: opts.successStatus ?? res.status });
+    const status = opts.successStatus ?? res.status;
+    // 204 / empty upstream bodies must not carry a JSON payload.
+    if (res.data == null) return new NextResponse(null, { status });
+    return NextResponse.json(res.data, { status });
   } catch (err) {
     if (err instanceof OracleError) {
       return NextResponse.json(

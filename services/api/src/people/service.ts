@@ -11,7 +11,6 @@ import {
   insertPersonName,
   patchPerson,
   searchPeopleByNormalizedName,
-  type PersonRow,
 } from './repo';
 import { getPersonAggregate, type PersonAggregateResult } from './aggregate';
 
@@ -94,6 +93,8 @@ export interface PersonSummary {
   label: string;
   livingStatus: string;
   privacyLevel: string;
+  birthYear: number | null;
+  deathYear: number | null;
   merged: boolean;
 }
 
@@ -103,24 +104,45 @@ export async function searchPeople(
   opts: { limit?: number; offset?: number; includeMerged?: boolean } = {},
 ): Promise<{ items: PersonSummary[] }> {
   const rows = await searchPeopleByNormalizedName(db, normalize(q), opts);
-  const items = await Promise.all(rows.map((r) => toSummary(db, r)));
-  return { items };
-}
+  if (rows.length === 0) return { items: [] };
+  const ids = rows.map((r) => r.id);
 
-async function toSummary(db: Db, person: PersonRow): Promise<PersonSummary> {
-  const name = await db
-    .selectFrom('person_names')
-    .select(['first_name', 'surname'])
-    .where('person_id', '=', person.id)
-    .where('is_preferred', '=', true)
-    .executeTakeFirst();
-  return {
-    id: person.id,
-    label: name ? [name.first_name, name.surname].filter(Boolean).join(' ') : '',
-    livingStatus: person.living_status,
-    privacyLevel: person.privacy_level,
-    merged: person.merged_into_person_id != null,
-  };
+  // Batch the per-row lookups (preferred name + birth/death year) into two queries.
+  const [names, events] = await Promise.all([
+    db
+      .selectFrom('person_names')
+      .select(['person_id', 'first_name', 'surname'])
+      .where('person_id', 'in', ids)
+      .where('is_preferred', '=', true)
+      .execute(),
+    db
+      .selectFrom('person_events')
+      .select(['person_id', 'event_type', 'year_from'])
+      .where('person_id', 'in', ids)
+      .where('event_type', 'in', ['birth', 'death'])
+      .execute(),
+  ]);
+  const nameByPerson = new Map(names.map((n) => [n.person_id, n]));
+  const birthByPerson = new Map<string, number | null>();
+  const deathByPerson = new Map<string, number | null>();
+  for (const e of events) {
+    if (e.event_type === 'birth' && !birthByPerson.has(e.person_id)) birthByPerson.set(e.person_id, e.year_from);
+    if (e.event_type === 'death' && !deathByPerson.has(e.person_id)) deathByPerson.set(e.person_id, e.year_from);
+  }
+
+  const items = rows.map((person): PersonSummary => {
+    const name = nameByPerson.get(person.id);
+    return {
+      id: person.id,
+      label: name ? [name.first_name, name.surname].filter(Boolean).join(' ') : '',
+      livingStatus: person.living_status,
+      privacyLevel: person.privacy_level,
+      birthYear: birthByPerson.get(person.id) ?? null,
+      deathYear: deathByPerson.get(person.id) ?? null,
+      merged: person.merged_into_person_id != null,
+    };
+  });
+  return { items };
 }
 
 /** Find-or-create a place from free text (idea.md §8). */

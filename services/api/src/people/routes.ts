@@ -14,6 +14,7 @@ import {
   type PromotionResult,
 } from './service';
 import { mergePerson } from './merge';
+import { listPersonEvidence } from '../sources/service';
 
 const createSchema = z.object({
   firstName: z.string().min(1).max(100),
@@ -62,6 +63,10 @@ export function registerPeopleRoutes(app: Hono<AppEnv>, deps: RouteDeps): void {
 
   app.get('/v1/internal/people/:id', requireRole('admin'), async (c) =>
     aggregateResponse(c, await getPersonAggregate(db, c.req.param('id'))),
+  );
+
+  app.get('/v1/internal/people/:id/evidence', requireRole('admin'), async (c) =>
+    c.json({ items: await listPersonEvidence(db, c.req.param('id')) }),
   );
 
   app.patch('/v1/internal/people/:id', requireRole('admin'), async (c) => {

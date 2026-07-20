@@ -539,6 +539,41 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /v1/internal/people/{id}/evidence:
+    get:
+      operationId: getPeopleByIdEvidence
+      tags: [people]
+      summary: List all evidence about a person (admin)
+      description: Evidence across the person and its names/events, joined to source metadata (idea.md §14).
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Evidence items with source metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        subjectType: { type: string }
+                        subjectId: { type: string, format: uuid }
+                        assertion: { type: string }
+                        stance: { type: string, enum: [supports, disputes] }
+                        confidence: { type: [integer, "null"] }
+                        notes: { type: [string, "null"] }
+                        sourceId: { type: string, format: uuid }
+                        sourceTitle: { type: string }
+                        sourceType: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   /v1/internal/people/{id}/merge:
     post:
       operationId: postPeopleByIdMerge
