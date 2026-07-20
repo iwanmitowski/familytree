@@ -10,6 +10,7 @@ import { registerSubmissionRoutes } from '../submissions/routes';
 import { registerMatchingRoutes } from '../matching/routes';
 import { registerPeopleRoutes } from '../people/routes';
 import { registerRelationshipRoutes } from '../genealogy/routes';
+import { registerSourceRoutes } from '../sources/routes';
 
 export type { AppEnv } from './http';
 export { writeError } from './http';
@@ -78,6 +79,7 @@ export function createApp({ logger, ping, hmac, db }: AppDeps) {
     registerMatchingRoutes(app, deps);
     registerPeopleRoutes(app, deps);
     registerRelationshipRoutes(app, deps);
+    registerSourceRoutes(app, deps);
   }
 
   // Reveals nothing about versions, hosts, or infrastructure (idea.md §4).
