@@ -11,6 +11,15 @@ import {
   patchParentChildEdge,
   type EdgeResult,
 } from './relationships-service';
+import {
+  addPartner,
+  createUnion,
+  deleteUnion,
+  getUnionView,
+  patchUnion,
+  removePartner,
+  type UnionResult,
+} from './unions-service';
 
 const REL_TYPES = ['biological', 'adoptive', 'step', 'foster', 'guardian', 'unknown'] as const;
 const VER_STATUS = ['proposed', 'confirmed', 'disputed', 'rejected'] as const;
@@ -73,4 +82,58 @@ export function registerRelationshipRoutes(app: Hono<AppEnv>, deps: RouteDeps): 
     if (!a || !b) return writeError(c, 422, 'missing_params', 'Необходими са personA и personB');
     return c.json({ edges: await edgesBetween(db, a, b) });
   });
+
+  // --- Family unions ---
+  const unionSchema = z.object({
+    unionType: z.enum(['marriage', 'partnership', 'unknown']),
+    partnerIds: z.array(z.string().uuid()).min(1).max(2),
+  });
+  const partnerSchema = z.object({ personId: z.string().uuid() });
+
+  app.post('/v1/internal/unions', requireRole('admin'), async (c) => {
+    const parsed = await parseJson(c, unionSchema);
+    if ('response' in parsed) return parsed.response;
+    return unionResponse(c, await createUnion(db, parsed.data.unionType, parsed.data.partnerIds, actor(c)), 201);
+  });
+
+  app.get('/v1/internal/unions/:id', requireRole('admin'), async (c) => {
+    const view = await getUnionView(db, c.req.param('id'));
+    if (!view) return writeError(c, 404, 'not_found', 'Съюзът не е намерен');
+    return c.json(view);
+  });
+
+  app.patch('/v1/internal/unions/:id', requireRole('admin'), async (c) => {
+    const parsed = await parseJson(c, z.object({ unionType: z.enum(['marriage', 'partnership', 'unknown']) }));
+    if ('response' in parsed) return parsed.response;
+    return unionResponse(c, await patchUnion(db, c.req.param('id'), parsed.data.unionType, actor(c)));
+  });
+
+  app.post('/v1/internal/unions/:id/partners', requireRole('admin'), async (c) => {
+    const parsed = await parseJson(c, partnerSchema);
+    if ('response' in parsed) return parsed.response;
+    return unionResponse(c, await addPartner(db, c.req.param('id'), parsed.data.personId, actor(c)));
+  });
+
+  app.delete('/v1/internal/unions/:id/partners/:personId', requireRole('admin'), async (c) =>
+    unionResponse(c, await removePartner(db, c.req.param('id'), c.req.param('personId'), actor(c))),
+  );
+
+  app.delete('/v1/internal/unions/:id', requireRole('admin'), async (c) => {
+    const result = await deleteUnion(db, c.req.param('id'), actor(c));
+    if (result.ok) return c.body(null, 204);
+    if (result.kind === 'in_use') return writeError(c, 409, 'union_in_use', 'Съюзът се използва от връзка дете-родител');
+    return writeError(c, 404, 'not_found', 'Съюзът не е намерен');
+  });
+}
+
+function unionResponse(c: Context<AppEnv>, result: UnionResult, okStatus = 200) {
+  if (result.ok) return c.json(result.union, okStatus as 200 | 201);
+  switch (result.kind) {
+    case 'not_found':
+      return writeError(c, 404, 'not_found', 'Съюзът или човекът не е намерен');
+    case 'invalid':
+      return writeError(c, 422, 'invalid_union', result.message);
+    case 'conflict':
+      return writeError(c, 409, 'conflict', result.message);
+  }
 }
