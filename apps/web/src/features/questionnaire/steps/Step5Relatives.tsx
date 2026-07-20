@@ -6,6 +6,7 @@ import {
   type Control,
   type FieldErrors,
   type UseFormRegister,
+  type UseFormSetValue,
 } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
@@ -19,7 +20,7 @@ import { Card, CardContent } from '@/components/ui/card';
 type FormValues = z.input<typeof step5Schema>;
 
 const CAP = 10;
-const OPTS = { showDeath: true, showInfoSource: true } as const;
+const OPTS = { showInfoSource: true } as const;
 
 type ArrayName = 'siblings' | 'children' | 'partners' | 'unclesAunts' | 'otherRelatives';
 
@@ -38,6 +39,7 @@ function RepeatableSection({
   control,
   register,
   errors,
+  setValue,
 }: {
   name: ArrayName;
   title: string;
@@ -45,6 +47,7 @@ function RepeatableSection({
   control: Control<FormValues>;
   register: UseFormRegister<FormValues>;
   errors: FieldErrors<FormValues>;
+  setValue: UseFormSetValue<FormValues>;
 }) {
   const { fields, append, remove } = useFieldArray({ control, name });
   const atCap = fields.length >= CAP;
@@ -58,6 +61,8 @@ function RepeatableSection({
             <PersonBlockFields
               register={register}
               errors={errors}
+              control={control}
+              setValue={setValue}
               prefix={`${name}.${index}`}
               idPrefix={`${name}-${index}`}
               options={OPTS}
@@ -105,6 +110,7 @@ export function Step5Relatives() {
     register,
     control,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = form;
 
@@ -124,6 +130,7 @@ export function Step5Relatives() {
             control={control}
             register={register}
             errors={errors}
+            setValue={setValue}
           />
         ))}
 
@@ -134,6 +141,8 @@ export function Step5Relatives() {
               <PersonBlockFields
                 register={register}
                 errors={errors}
+                control={control}
+                setValue={setValue}
                 prefix="contactPerson"
                 idPrefix="contactPerson"
                 options={{ showInfoSource: true }}

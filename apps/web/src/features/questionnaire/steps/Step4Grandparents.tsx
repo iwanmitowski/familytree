@@ -12,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 type FormValues = z.input<typeof step4Schema>;
 
 const OPTS = {
-  showDeath: true,
   showOccupation: true,
   showFamilyStories: true,
   showInfoSource: true,
@@ -30,6 +29,8 @@ export function Step4Grandparents() {
   const {
     register,
     handleSubmit,
+    control,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(step4Schema),
@@ -54,6 +55,8 @@ export function Step4Grandparents() {
               <PersonBlockFields
                 register={register}
                 errors={errors}
+                control={control}
+                setValue={setValue}
                 prefix={b.key}
                 idPrefix={b.key}
                 options={OPTS}

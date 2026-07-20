@@ -1,13 +1,23 @@
 'use client';
 
-import type { FieldErrors, FieldValues, UseFormRegister, Path } from 'react-hook-form';
+import {
+  useWatch,
+  type Control,
+  type FieldErrors,
+  type FieldValues,
+  type Path,
+  type UseFormRegister,
+  type UseFormSetValue,
+} from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { LIVING_STATUS, LIVING_STATUS_LABELS, PARENT_RELATIONSHIP, PARENT_RELATIONSHIP_LABELS } from '../labels';
+import { YearField } from './YearField';
 
 export interface PersonFieldOptions {
-  showDeath?: boolean;
+  /** Hide the living-status select (e.g. the participant filling for themselves). */
+  hideLivingStatus?: boolean;
   showOccupation?: boolean;
   showRelationshipType?: boolean;
   showFamilyStories?: boolean;
@@ -40,23 +50,33 @@ export function FieldError({ message }: { message?: string }) {
 /**
  * Reusable set of fields describing one person (idea.md §9). `prefix` is the
  * RHF path (e.g. "self", "father", "siblings.0"); options toggle the parts a
- * given step needs. Mobile-first single-column layout.
+ * given step needs. Death fields appear ONLY when the person is marked as
+ * deceased — a living person is never asked for a year of death.
  */
 export function PersonBlockFields<T extends FieldValues>({
   register,
   errors,
+  control,
+  setValue,
   prefix,
   options = {},
   idPrefix,
 }: {
   register: UseFormRegister<T>;
   errors: FieldErrors<T>;
+  control: Control<T>;
+  setValue: UseFormSetValue<T>;
   prefix: string;
   options?: PersonFieldOptions;
   idPrefix: string;
 }) {
   const p = (name: string) => `${prefix}.${name}` as Path<T>;
   const id = (name: string) => `${idPrefix}-${name}`;
+
+  const livingStatus = useWatch({ control, name: p('livingStatus') }) as string | undefined;
+  const birthYear = useWatch({ control, name: p('birthYear') }) as number | undefined;
+  const deathYear = useWatch({ control, name: p('deathYear') }) as number | undefined;
+  const showDeath = !options.hideLivingStatus && livingStatus === 'deceased';
 
   return (
     <div className="grid gap-4">
@@ -95,36 +115,9 @@ export function PersonBlockFields<T extends FieldValues>({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label htmlFor={id('birthYear')}>Година на раждане (приблизително)</Label>
-          <Input
-            id={id('birthYear')}
-            type="number"
-            inputMode="numeric"
-            {...register(p('birthYear'), { setValueAs: (v) => (v === '' ? undefined : Number(v)) })}
-          />
-          <FieldError message={errorAt(errors, p('birthYear'))} />
-        </div>
-        {options.showDeath && (
-          <div>
-            <Label htmlFor={id('deathYear')}>Година на смърт (приблизително)</Label>
-            <Input
-              id={id('deathYear')}
-              type="number"
-              inputMode="numeric"
-              {...register(p('deathYear'), { setValueAs: (v) => (v === '' ? undefined : Number(v)) })}
-            />
-            <FieldError message={errorAt(errors, p('deathYear'))} />
-          </div>
-        )}
-        <div>
-          <Label htmlFor={id('birthplace')}>Място на раждане</Label>
-          <Input id={id('birthplace')} {...register(p('birthplace'))} />
-          <FieldError message={errorAt(errors, p('birthplace'))} />
-        </div>
-        <div>
-          <Label htmlFor={id('livingStatus')}>Статус</Label>
+      {!options.hideLivingStatus && (
+        <div className="sm:max-w-xs">
+          <Label htmlFor={id('livingStatus')}>Жив/а ли е този човек?</Label>
           <select
             id={id('livingStatus')}
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs sm:text-sm"
@@ -136,6 +129,34 @@ export function PersonBlockFields<T extends FieldValues>({
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <YearField
+          name={p('birthYear')}
+          id={id('birthYear')}
+          label="Година на раждане"
+          register={register}
+          setValue={setValue}
+          value={birthYear}
+          error={errorAt(errors, p('birthYear'))}
+        />
+        {showDeath && (
+          <YearField
+            name={p('deathYear')}
+            id={id('deathYear')}
+            label="Година на смърт"
+            register={register}
+            setValue={setValue}
+            value={deathYear}
+            error={errorAt(errors, p('deathYear'))}
+          />
+        )}
+        <div>
+          <Label htmlFor={id('birthplace')}>Място на раждане</Label>
+          <Input id={id('birthplace')} placeholder="град / село" {...register(p('birthplace'))} />
+          <FieldError message={errorAt(errors, p('birthplace'))} />
         </div>
         {options.showOccupation && (
           <div>
