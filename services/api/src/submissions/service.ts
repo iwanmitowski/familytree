@@ -4,6 +4,7 @@ import type { DB } from '../db/generated/db';
 import { insertAuditEntry } from '../audit/repo';
 import { consumeInvite } from '../invites/service';
 import { normalize } from '../names';
+import { rateLimitHits, spamFlagged, submissionsCreated } from '../metrics/registry';
 import {
   insertConsent,
   insertSubmission,
@@ -102,10 +103,14 @@ export async function createSubmission(
       inviteId = consumed.invite.id;
     } else if (input.clientFingerprint) {
       const recent = await countRecentSubmissions(trx, input.clientFingerprint);
-      if (recent >= MAX_SUBMISSIONS_PER_FINGERPRINT) return { ok: false, kind: 'rate_limited' };
+      if (recent >= MAX_SUBMISSIONS_PER_FINGERPRINT) {
+        rateLimitHits.inc();
+        return { ok: false, kind: 'rate_limited' };
+      }
     }
 
     const status = input.spamSignal ? 'spam' : 'pending';
+    if (input.spamSignal) spamFlagged.inc();
     const submission = await insertSubmission(trx, {
       invite_id: inviteId,
       status,
@@ -173,6 +178,7 @@ export async function createSubmission(
       metadata: JSON.stringify({ status, people: (input.payload.people ?? []).length }),
     });
 
+    submissionsCreated.inc();
     return { ok: true, submissionId: submission.id };
   });
 }

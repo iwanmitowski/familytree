@@ -11,6 +11,8 @@ import { registerMatchingRoutes } from '../matching/routes';
 import { registerPeopleRoutes } from '../people/routes';
 import { registerRelationshipRoutes } from '../genealogy/routes';
 import { registerSourceRoutes } from '../sources/routes';
+import { registerMonitoringRoutes } from '../metrics/routes';
+import { httpDuration, httpRequests, metricsText } from '../metrics/registry';
 
 export type { AppEnv } from './http';
 export { writeError } from './http';
@@ -43,17 +45,22 @@ export function createApp({ logger, ping, hmac, db }: AppDeps) {
     c.header('X-Request-Id', requestId);
     const start = performance.now();
     await next();
+    const durationMs = performance.now() - start;
+    // Route pattern (not the raw path) keeps metric cardinality bounded.
+    const route = c.req.routePath ?? c.req.path;
+    const labels = { route, method: c.req.method, status: String(c.res.status) };
+    httpRequests.inc(labels);
+    httpDuration.observe(labels, durationMs / 1000);
     // Metadata only — request/response bodies are never logged.
     logger.info(
-      {
-        method: c.req.method,
-        path: c.req.path,
-        status: c.res.status,
-        durationMs: Math.round(performance.now() - start),
-        requestId,
-      },
+      { method: c.req.method, route, status: c.res.status, durationMs: Math.round(durationMs), requestId },
       'request',
     );
+  });
+
+  // Internal metrics endpoint (blocked at Caddy — see infra/oracle/Caddyfile).
+  app.get('/metrics', async (c) => {
+    return c.text(await metricsText(), 200, { 'Content-Type': 'text/plain; version=0.0.4' });
   });
 
   app.onError((err, c) => {
@@ -80,6 +87,7 @@ export function createApp({ logger, ping, hmac, db }: AppDeps) {
     registerPeopleRoutes(app, deps);
     registerRelationshipRoutes(app, deps);
     registerSourceRoutes(app, deps);
+    registerMonitoringRoutes(app, deps);
   }
 
   // Reveals nothing about versions, hosts, or infrastructure (idea.md §4).

@@ -5,6 +5,7 @@ import { clientFingerprint, extractClientIp } from '@/server/fingerprint';
 import { verifyTurnstile } from '@/server/turnstile';
 import { oracleFetch } from '@/server/oracle/client';
 import { OracleError } from '@/server/oracle/errors';
+import { reportAbuse } from '@/server/abuse';
 
 const MAX_BODY_BYTES = 100 * 1024;
 const MIN_DURATION_MS = 60_000;
@@ -52,6 +53,7 @@ export async function POST(req: Request): Promise<Response> {
   const ip = extractClientIp(req.headers);
   const turnstileOk = await verifyTurnstile(body.turnstileToken ?? '', ip);
   if (!turnstileOk) {
+    reportAbuse('turnstile_rejected', requestId);
     return jsonError(400, 'turnstile_failed', 'Проверката за роботи не бе успешна.', requestId);
   }
 

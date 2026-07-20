@@ -147,6 +147,24 @@ Names and purpose only — values live in Vercel project settings, the Oracle `.
 
 `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`, `DEPLOY_SSH_KEY`, and (if needed) a container-registry token. Deploy workflows skip gracefully without them.
 
+## 10.4 Monitoring (idea.md §22)
+
+- The API exposes Prometheus metrics at `GET /metrics`, reachable only on the
+  internal Docker network — Caddy returns 404 for `/metrics`, so it is never
+  public. Scrape it from a collector on the internal network.
+- Series: `http_requests_total` / `http_request_duration_seconds` (labelled by
+  route **pattern**, method, status — bounded cardinality), `db_pool_*` gauges,
+  the business counters (`submissions_created_total`, `hmac_failures_total`,
+  `turnstile_rejections_total`, `rate_limit_hits_total`, `spam_flagged_total`),
+  and `backup_last_success_timestamp` (read from `backup-status.json`).
+- The BFF reports client-side abuse (`turnstile_rejected`, …) to
+  `POST /v1/internal/abuse-events`; the API counts and audits it.
+- Correlation: the BFF's `X-Request-Id` is logged on both sides and echoed in
+  error bodies. Request logs carry metadata only — questionnaire payloads are
+  never logged.
+- `scripts/check-disk.sh` (daily cron) alerts when the data mount exceeds the
+  threshold; photos and backups can fill the volume.
+
 ## 11. Design principle
 
 When choosing between a complex and a simple architecture, choose the simple one as long as security, reliability, and future extensibility are preserved (idea.md §26). Significant or ambiguous decisions are recorded as ADRs in [`adr/`](adr/).
