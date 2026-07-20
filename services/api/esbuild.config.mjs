@@ -21,3 +21,4 @@ const shared = {
 
 await build({ ...shared, entryPoints: ['src/index.ts'], outfile: 'dist/index.js' });
 await build({ ...shared, entryPoints: ['src/db/migrate.ts'], outfile: 'dist/db/migrate.js' });
+await build({ ...shared, entryPoints: ['src/export.ts'], outfile: 'dist/export.js' });
