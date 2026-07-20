@@ -21,6 +21,9 @@
 		-Server
 	}
 
+	# /metrics is internal-only — never expose it publicly.
+	respond /metrics 404
+
 	# Reverse proxy to the API on the internal Docker network.
 	reverse_proxy api:8080
 

@@ -6,6 +6,7 @@ import { createApp } from './transport/app';
 import { createDb, createPool, ping } from './persistence/db';
 import { dbAuthStore } from './auth/hmac';
 import { startAuthJanitor } from './auth/janitor';
+import { bindBackupMetric, bindPoolMetrics } from './metrics/registry';
 
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL, config.ENV);
@@ -24,6 +25,9 @@ const app = createApp({
 });
 
 const janitor = startAuthJanitor(db, logger);
+
+bindPoolMetrics(pool);
+bindBackupMetric(process.env.BACKUP_STATUS_PATH ?? '/opt/familytree/backups/backup-status.json');
 
 const server = serve({ fetch: app.fetch, port: config.PORT, hostname: '0.0.0.0' }, (info) => {
   logger.info({ port: info.port }, 'api listening');

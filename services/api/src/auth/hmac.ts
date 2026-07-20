@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Kysely } from 'kysely';
 import { requestHash, verifyRequest } from '@familytree/shared';
 import type { Logger } from '../logger';
+import { hmacFailures } from '../metrics/registry';
 import { writeError, type AppEnv } from '../transport/http';
 import type { DB } from '../db/generated/db';
 import {
@@ -63,6 +64,7 @@ export interface HmacAuthConfig {
 export function hmacAuth(config: HmacAuthConfig, logger: Logger): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const unauthorized = (reason: string) => {
+      hmacFailures.inc();
       logger.debug({ reason, requestId: c.get('requestId') }, 'hmac rejected');
       return writeError(c, 401, 'unauthorized', 'authentication failed');
     };
