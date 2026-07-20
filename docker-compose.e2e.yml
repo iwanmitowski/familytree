@@ -1,0 +1,60 @@
+# End-to-end test stack (idea.md §23). Builds the API from source, applies
+# migrations, and exposes the API on 127.0.0.1:8787 for `apps/web` (started
+# separately with .env.e2e). Isolated from dev/prod — its own DB + secrets.
+#
+#   docker compose -f docker-compose.e2e.yml build
+#   docker compose -f docker-compose.e2e.yml run --rm migrate
+#   docker compose -f docker-compose.e2e.yml up -d postgres api
+#
+# See scripts/e2e-up.sh for the orchestrated version.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: familytree
+      POSTGRES_PASSWORD: familytree
+      POSTGRES_DB: familytree_e2e
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "127.0.0.1:5544:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U familytree -d familytree_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: apply migrations before the API starts.
+  migrate:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    image: familytree-api-e2e
+    restart: "no"
+    command: ["node", "dist/db/migrate.js", "up"]
+    environment:
+      DATABASE_URL: postgres://familytree:familytree@postgres:5432/familytree_e2e
+      SERVICE_ID: familytree-bff-e2e
+      SERVICE_HMAC_SECRET: e2e0test0secret0000000000000000000000000000000000000000000000abcd
+      ENV: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    image: familytree-api-e2e
+    environment:
+      PORT: "8080"
+      ENV: dev
+      LOG_LEVEL: warn
+      DATABASE_URL: postgres://familytree:familytree@postgres:5432/familytree_e2e
+      SERVICE_ID: familytree-bff-e2e
+      SERVICE_HMAC_SECRET: e2e0test0secret0000000000000000000000000000000000000000000000abcd
+    ports:
+      - "127.0.0.1:8787:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy

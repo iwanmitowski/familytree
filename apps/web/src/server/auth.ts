@@ -1,10 +1,26 @@
-import NextAuth from 'next-auth';
+import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
 import { NextResponse } from 'next/server';
 import { isAllowedAdmin } from './admin-allowlist';
+import { e2eCredentialsProvider } from './e2e-credentials';
 
 const ADMIN_PATH = /^\/admin(?!\/login)(\/|$)/;
 const ADMIN_API_PATH = /^\/api\/admin(\/|$)/;
+
+/**
+ * Providers: Google in every environment; a guarded test-credentials provider
+ * ONLY when E2E_TEST_MODE=1 (and never in production — the provider throws).
+ */
+function buildProviders(): NextAuthConfig['providers'] {
+  const providers: NextAuthConfig['providers'] = [
+    Google({
+      clientId: process.env.OAUTH_CLIENT_ID,
+      clientSecret: process.env.OAUTH_CLIENT_SECRET,
+    }),
+  ];
+  if (process.env.E2E_TEST_MODE === '1') providers.push(e2eCredentialsProvider());
+  return providers;
+}
 
 /**
  * Auth.js (v5) configuration for admin authentication (idea.md §5). Google
@@ -14,12 +30,7 @@ const ADMIN_API_PATH = /^\/api\/admin(\/|$)/;
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  providers: [
-    Google({
-      clientId: process.env.OAUTH_CLIENT_ID,
-      clientSecret: process.env.OAUTH_CLIENT_SECRET,
-    }),
-  ],
+  providers: buildProviders(),
   session: {
     strategy: 'jwt',
     maxAge: 8 * 60 * 60, // 8 hours

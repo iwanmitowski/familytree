@@ -3,10 +3,14 @@ import type { PersonNodeData } from './types';
 import { applyElkPositions, toElkGraph, type ElkGraph, type FlowGraph } from './projection-to-flow';
 
 const WORKER_TIMEOUT_MS = 15_000;
+// Turbopack dev rewrites the Worker global and breaks module-worker construction
+// (`_Worker is not a constructor`), so the worker path can hang. Main-thread ELK
+// is fine for the capped graph sizes here. TODO: re-enable once worker bundling is fixed.
+const WORKER_ENABLED = false;
 
 /** Runs ELK in a Web Worker, falling back to the main thread on any failure. */
 async function runElk(graph: ElkGraph): Promise<ElkGraph> {
-  if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
+  if (WORKER_ENABLED && typeof window !== 'undefined' && typeof Worker !== 'undefined') {
     try {
       return await layoutInWorker(graph);
     } catch {
@@ -19,7 +23,15 @@ async function runElk(graph: ElkGraph): Promise<ElkGraph> {
 
 function layoutInWorker(graph: ElkGraph): Promise<ElkGraph> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./elk.worker.ts', import.meta.url));
+    let worker: Worker;
+    try {
+      // Construction can throw synchronously (e.g. Turbopack dev rewrites the
+      // Worker global). Catch it here so runElk() can fall back cleanly.
+      worker = new Worker(new URL('./elk.worker.ts', import.meta.url));
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error('ELK worker unavailable'));
+      return;
+    }
     const done = (fn: () => void) => {
       clearTimeout(timer);
       worker.terminate();
