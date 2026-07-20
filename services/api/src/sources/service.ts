@@ -184,6 +184,57 @@ export function listEvidence(
   return listEvidenceBySubject(db, subjectType, subjectId);
 }
 
+export interface PersonEvidenceItem {
+  id: string;
+  subjectType: SubjectType;
+  subjectId: string;
+  assertion: string;
+  stance: Stance;
+  confidence: number | null;
+  notes: string | null;
+  sourceId: string;
+  sourceTitle: string;
+  sourceType: string;
+}
+
+/**
+ * All evidence about a person across the person row and its names/events,
+ * joined to source metadata (idea.md §14) — powers the admin sources tab.
+ */
+export async function listPersonEvidence(db: Db, personId: string): Promise<PersonEvidenceItem[]> {
+  const [nameIds, eventIds] = await Promise.all([
+    db.selectFrom('person_names').select('id').where('person_id', '=', personId).execute(),
+    db.selectFrom('person_events').select('id').where('person_id', '=', personId).execute(),
+  ]);
+  const names = nameIds.map((r) => r.id);
+  const events = eventIds.map((r) => r.id);
+  const rows = await db
+    .selectFrom('evidence')
+    .innerJoin('sources', 'sources.id', 'evidence.source_id')
+    .select([
+      'evidence.id as id',
+      'evidence.subject_type as subjectType',
+      'evidence.subject_id as subjectId',
+      'evidence.assertion as assertion',
+      'evidence.stance as stance',
+      'evidence.confidence as confidence',
+      'evidence.notes as notes',
+      'sources.id as sourceId',
+      'sources.title as sourceTitle',
+      'sources.source_type as sourceType',
+    ])
+    .where((eb) =>
+      eb.or([
+        eb.and([eb('evidence.subject_type', '=', 'person'), eb('evidence.subject_id', '=', personId)]),
+        ...(names.length ? [eb.and([eb('evidence.subject_type', '=', 'person_name'), eb('evidence.subject_id', 'in', names)])] : []),
+        ...(events.length ? [eb.and([eb('evidence.subject_type', '=', 'person_event'), eb('evidence.subject_id', 'in', events)])] : []),
+      ]),
+    )
+    .orderBy('evidence.created_at')
+    .execute();
+  return rows as PersonEvidenceItem[];
+}
+
 export async function deleteEvidenceRecord(db: Db, id: string, actorId: string): Promise<boolean> {
   const deleted = await db.deleteFrom('evidence').where('id', '=', id).returningAll().executeTakeFirst();
   if (!deleted) return false;
