@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import type { AppEnv, RouteDeps } from '../transport/app';
 import { writeError } from '../transport/http';
@@ -6,6 +6,8 @@ import { parseJson } from '../transport/validate';
 import { requireRole } from '../auth/hmac';
 import { createSubmission } from './service';
 import { getSubmissionDetail, listSubmissionsForAdmin } from './read';
+import { markSpam, rejectSubmission, startReview, type TransitionResult } from './workflow';
+import { contactLeads } from './contact-leads';
 import type { SubmissionRow } from './repo';
 
 const payloadSchema = z.object({}).passthrough();
@@ -65,6 +67,47 @@ export function registerSubmissionRoutes(app: Hono<AppEnv>, deps: RouteDeps): vo
     if (!detail) return writeError(c, 404, 'not_found', 'Submission not found');
     return c.json(detail);
   });
+
+  // Admin: status transitions.
+  app.post('/v1/internal/submissions/:id/start-review', requireRole('admin'), async (c) =>
+    transitionResponse(c, await startReview(db, c.req.param('id'), c.get('actorId') ?? 'admin')),
+  );
+
+  const reasonSchema = z.object({ reason: z.string().min(1).max(2000) });
+
+  app.post('/v1/internal/submissions/:id/reject', requireRole('admin'), async (c) => {
+    const parsed = await parseJson(c, reasonSchema);
+    if ('response' in parsed) return parsed.response;
+    return transitionResponse(
+      c,
+      await rejectSubmission(db, c.req.param('id'), parsed.data.reason, c.get('actorId') ?? 'admin'),
+    );
+  });
+
+  app.post('/v1/internal/submissions/:id/mark-spam', requireRole('admin'), async (c) => {
+    const parsed = await parseJson(c, reasonSchema);
+    if ('response' in parsed) return parsed.response;
+    return transitionResponse(
+      c,
+      await markSpam(db, c.req.param('id'), parsed.data.reason, c.get('actorId') ?? 'admin'),
+    );
+  });
+
+  // Admin: snowball contact leads.
+  app.get('/v1/internal/contact-leads', requireRole('admin'), async (c) => {
+    return c.json(await contactLeads(db));
+  });
+}
+
+function transitionResponse(c: Context<AppEnv>, result: TransitionResult) {
+  if (result.ok) return c.json({ id: c.req.param('id'), status: result.status });
+  if (result.kind === 'not_found') return writeError(c, 404, 'not_found', 'Submission not found');
+  return writeError(
+    c,
+    409,
+    'invalid_transition',
+    `Неразрешен преход от статус „${result.from}“`,
+  );
 }
 
 function clampInt(value: string | undefined, fallback: number, min: number, max: number): number {
