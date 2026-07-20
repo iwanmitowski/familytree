@@ -10,6 +10,7 @@ import {
   createPersonManual,
   linkPersonFromSubmission,
   patchPersonById,
+  publicSearchPeople,
   searchPeople,
   type PromotionResult,
 } from './service';
@@ -52,6 +53,12 @@ export function registerPeopleRoutes(app: Hono<AppEnv>, deps: RouteDeps): void {
     if ('response' in parsed) return parsed.response;
     return aggregateResponse(c, await createPersonManual(db, parsed.data, actor(c)), 201);
   });
+
+  // Public root picker (no requireRole) — living/private people never returned.
+  // Registered before /people/:id so it isn't captured by that param route.
+  app.get('/v1/internal/people/public-search', async (c) =>
+    c.json(await publicSearchPeople(db, c.req.query('q') ?? '')),
+  );
 
   app.get('/v1/internal/people', requireRole('admin'), async (c) => {
     const q = c.req.query('q') ?? '';
