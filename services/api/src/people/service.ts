@@ -145,6 +145,51 @@ export async function searchPeople(
   return { items };
 }
 
+export interface PublicPersonHit {
+  id: string;
+  label: string;
+  birthYear: number | null;
+}
+
+/**
+ * Public person search for the tree root picker (idea.md §14/§15). Only returns
+ * people who are publicly visible: deceased AND privacy family/public. Living and
+ * private people are never findable publicly.
+ */
+export async function publicSearchPeople(db: Db, q: string): Promise<{ items: PublicPersonHit[] }> {
+  const normalized = normalize(q);
+  if (normalized.length < 2) return { items: [] };
+  const rows = await db
+    .selectFrom('people')
+    .innerJoin('person_names', 'person_names.person_id', 'people.id')
+    .select('people.id as id')
+    .distinct()
+    .where('person_names.normalized_name', 'like', `%${normalized}%`)
+    .where('people.merged_into_person_id', 'is', null)
+    .where('people.deleted_at', 'is', null)
+    .where('people.living_status', '=', 'deceased')
+    .where('people.privacy_level', 'in', ['family', 'public'])
+    .limit(25)
+    .execute();
+  if (rows.length === 0) return { items: [] };
+  const ids = rows.map((r) => r.id);
+
+  const [names, births] = await Promise.all([
+    db.selectFrom('person_names').select(['person_id', 'first_name', 'surname']).where('person_id', 'in', ids).where('is_preferred', '=', true).execute(),
+    db.selectFrom('person_events').select(['person_id', 'year_from']).where('person_id', 'in', ids).where('event_type', '=', 'birth').execute(),
+  ]);
+  const nameBy = new Map(names.map((n) => [n.person_id, n]));
+  const birthBy = new Map<string, number | null>();
+  for (const b of births) if (!birthBy.has(b.person_id)) birthBy.set(b.person_id, b.year_from);
+
+  return {
+    items: ids.map((id) => {
+      const n = nameBy.get(id);
+      return { id, label: n ? [n.first_name, n.surname].filter(Boolean).join(' ') : '', birthYear: birthBy.get(id) ?? null };
+    }),
+  };
+}
+
 /** Find-or-create a place from free text (idea.md §8). */
 export async function upsertPlaceByText(db: Db, rawText: string): Promise<string | null> {
   const trimmed = rawText.trim();

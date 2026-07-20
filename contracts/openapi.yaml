@@ -564,6 +564,36 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
+  /v1/internal/people/public-search:
+    get:
+      operationId: getPeoplePublicSearch
+      tags: [people]
+      summary: Public person search for the tree root picker
+      description: Public (non-admin) — returns ONLY deceased family/public people. Living and private people are never findable publicly (idea.md §14/§15). Requires a query of at least two normalized characters.
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Publicly visible people.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, label, birthYear]
+                      properties:
+                        id: { type: string, format: uuid }
+                        label: { type: string }
+                        birthYear: { type: [integer, "null"] }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /v1/internal/people:
     get:
       operationId: getPeople
