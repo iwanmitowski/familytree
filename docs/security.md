@@ -53,6 +53,7 @@ Only `GET /health` is exempt. `GET /ready` is unauthenticated but returns only `
 - Secure HttpOnly session cookies, `SameSite=Lax`, CSRF protection, short session lifetime, role `admin`.
 - The Oracle API does **not** validate the OAuth session. The BFF validates the admin session, then issues a signed request carrying `actorId`/`actorRole`; the API authorizes from the signed role.
 - Admin BFF mutations additionally require an `X-Admin-Request` marker set by our fetch wrapper (defense in depth alongside SameSite), blocked cross-origin by CORS.
+- **E2E test credentials (idea.md §23):** a Credentials provider is registered **only** when `E2E_TEST_MODE=1`, for Playwright. It is **hard-guarded**: `e2eCredentialsProvider()` calls `assertE2EAllowed()`, which **throws** if `VERCEL_ENV` or `APP_ENV` is `production` — so a stray `E2E_TEST_MODE=1` in production fails closed at startup rather than exposing a password login. The test admin email must also be in `ADMIN_EMAIL_ALLOWLIST`. Never set `E2E_TEST_MODE` in a real deployment.
 
 ## 4. Anti-abuse (idea.md §6)
 
