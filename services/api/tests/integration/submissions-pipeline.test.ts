@@ -91,6 +91,9 @@ describe.skipIf(!testDatabaseUrl())('submission pipeline', () => {
       .where('submission_id', '=', submissionId)
       .execute();
     expect(people.map((p) => p.local_key).sort()).toEqual(['FATHER', 'SELF']);
+    // Names are normalized on ingest (Task 19 pipeline).
+    const self = people.find((p) => p.local_key === 'SELF')!;
+    expect(self.normalized_name).toBe('иван митовски');
     const father = people.find((p) => p.local_key === 'FATHER')!;
     // Approximate birth year → a ±3 window, never a fabricated exact date.
     expect(father.birth_year_from).toBe(1947);
