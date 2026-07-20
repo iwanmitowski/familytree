@@ -1,0 +1,35 @@
+name: Deploy Web (gate)
+
+# Vercel's native GitHub integration builds and deploys apps/web on every push
+# to main (simplest secure option). This workflow only runs the web checks as a
+# deploy gate; it does not deploy. See docs/deployment-oracle-bg.md for the
+# Vercel project setup (domain, env vars, git integration).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/shared/**'
+
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --workspace @familytree/web
+      - run: npm run typecheck --workspace @familytree/web
+      - run: npm test --workspace @familytree/web
+      - run: npm run build --workspace @familytree/web
