@@ -34,4 +34,10 @@ export interface TreeProjection {
 export interface PersonNodeData extends Record<string, unknown> {
   node: TreeNode;
   isRoot: boolean;
+  /** Visual overlays (applied without re-running layout). */
+  dimmed?: boolean;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: (id: string) => void;
+  onLoadMore?: (id: string) => void;
 }

@@ -13,103 +13,116 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { PersonNodeData, TreeNode, TreeProjection } from './types';
+import type { Highlight } from './highlight';
 import { projectionToFlow } from './projection-to-flow';
 import { layoutFlow } from './layout';
-import { personYears, unionTypeLabel } from './labels';
 import { PersonNode } from './nodes/PersonNode';
 import { UnionNode } from './nodes/UnionNode';
 import { Button } from '@/components/ui/button';
 
 const nodeTypes = { person: PersonNode, union: UnionNode };
 
-export function TreeCanvas({ projection }: { projection: TreeProjection }) {
+export interface TreeCanvasProps {
+  projection: TreeProjection;
+  highlight?: Highlight | null;
+  collapsedIds: ReadonlySet<string>;
+  collapsibleIds: ReadonlySet<string>;
+  boundaryIds: ReadonlySet<string>;
+  onSelect: (node: TreeNode) => void;
+  onReRoot: (id: string) => void;
+  onToggleCollapse: (id: string) => void;
+  onLoadMore: (id: string) => void;
+}
+
+export function TreeCanvas(props: TreeCanvasProps) {
   return (
     <ReactFlowProvider>
-      <TreeCanvasInner projection={projection} />
+      <TreeCanvasInner {...props} />
     </ReactFlowProvider>
   );
 }
 
-function TreeCanvasInner({ projection }: { projection: TreeProjection }) {
+function TreeCanvasInner({
+  projection, highlight, collapsedIds, collapsibleIds, boundaryIds,
+  onSelect, onReRoot, onToggleCollapse, onLoadMore,
+}: TreeCanvasProps) {
   const { fitView } = useReactFlow();
   const base = useMemo(() => projectionToFlow(projection), [projection]);
-  // Keyed by the base graph it was computed for, so a stale result never renders
-  // against a newer projection (and we avoid resetting state synchronously).
   const [laid, setLaid] = useState<{ base: typeof base; nodes: Node<PersonNodeData>[] } | null>(null);
-  const [selected, setSelected] = useState<TreeNode | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     layoutFlow(base)
-      .then((nodes) => {
-        if (!cancelled) setLaid({ base, nodes });
-      })
-      .catch(() => {
-        // Last-resort: render unpositioned so the canvas is never blank.
-        if (!cancelled) setLaid({ base, nodes: base.nodes });
-      });
+      .then((nodes) => !cancelled && setLaid({ base, nodes }))
+      .catch(() => !cancelled && setLaid({ base, nodes: base.nodes }));
     return () => {
       cancelled = true;
     };
   }, [base]);
 
-  const nodes = laid?.base === base ? laid.nodes : null;
-  const edges: Edge[] = base.edges;
+  const laidNodes = laid?.base === base ? laid.nodes : null;
+
+  const nodes = useMemo<Node<PersonNodeData>[]>(() => {
+    if (!laidNodes) return [];
+    return laidNodes.map((n) => ({
+      ...n,
+      data: {
+        ...n.data,
+        dimmed: !!highlight && !highlight.nodeIds.has(n.id),
+        collapsible: collapsibleIds.has(n.id),
+        collapsed: collapsedIds.has(n.id),
+        onToggleCollapse,
+        onLoadMore: boundaryIds.has(n.id) ? onLoadMore : undefined,
+      },
+    }));
+  }, [laidNodes, highlight, collapsedIds, collapsibleIds, boundaryIds, onToggleCollapse, onLoadMore]);
+
+  const edges = useMemo<Edge[]>(
+    () =>
+      base.edges.map((e) => {
+        const on = highlight ? highlight.edgeIds.has(e.id) : true;
+        return {
+          ...e,
+          style: {
+            ...e.style,
+            opacity: on ? 1 : 0.12,
+            stroke: highlight && on ? 'var(--color-primary, #2563eb)' : undefined,
+            strokeWidth: highlight && on ? 2.5 : (e.style?.strokeWidth ?? 1.5),
+          },
+        };
+      }),
+    [base.edges, highlight],
+  );
 
   return (
     <div className="relative h-full w-full">
-      {nodes === null && (
+      {laidNodes === null && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
           <p className="text-sm text-muted-foreground">Подреждане на дървото…</p>
         </div>
       )}
       <ReactFlow
-        nodes={nodes ?? []}
+        nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
         minZoom={0.1}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
-        onNodeClick={(_e, node) => setSelected((node.data as PersonNodeData).node)}
-        onPaneClick={() => setSelected(null)}
+        onNodeClick={(_e, node) => onSelect((node.data as PersonNodeData).node)}
+        onNodeDoubleClick={(_e, node) => {
+          if ((node.data as PersonNodeData).node.type === 'person') onReRoot(node.id);
+        }}
       >
         <Background />
         <Controls showInteractive={false} />
         <Panel position="top-right" className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => fitView({ duration: 400 })}>
-            Побери
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fitView({ duration: 400, nodes: [{ id: projection.rootPersonId }] })}
-          >
+          <Button size="sm" variant="outline" onClick={() => fitView({ duration: 400 })}>Побери</Button>
+          <Button size="sm" variant="outline" onClick={() => fitView({ duration: 400, nodes: [{ id: projection.rootPersonId }] })}>
             Центрирай
           </Button>
         </Panel>
-        {selected && (
-          <Panel position="bottom-left" className="max-w-xs rounded-lg border bg-card p-3 shadow-md">
-            <NodeInfo node={selected} />
-          </Panel>
-        )}
       </ReactFlow>
-    </div>
-  );
-}
-
-function NodeInfo({ node }: { node: TreeNode }) {
-  if (node.type === 'union') {
-    return <p className="text-sm font-medium">{unionTypeLabel(node.unionType)}</p>;
-  }
-  const years = personYears(node);
-  return (
-    <div className="space-y-1">
-      <p className="text-sm font-medium">{node.label || 'Без име'}</p>
-      {years && <p className="text-xs text-muted-foreground">{years}</p>}
-      {node.sourceCount != null && node.sourceCount > 0 && (
-        <p className="text-xs text-muted-foreground">Източници: {node.sourceCount}</p>
-      )}
     </div>
   );
 }
